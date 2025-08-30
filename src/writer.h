@@ -12,7 +12,7 @@ typedef struct StringBuilder {
     ptrdiff_t cap;
 } StringBuilder;
 
-void write_file(Arena *arena, Arena *files, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents);
+void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents);
 
 #endif /* WRITER_H_ */
 

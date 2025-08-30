@@ -28,7 +28,6 @@ typedef struct ArrayCharRange {
     ptrdiff_t cap;
 } ArrayCharRange;
 
-// TODO: parse ifdefs
 typedef struct FileContent {
     ArrayLineRange pragmas;
     ArrayLineRange defines;

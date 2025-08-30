@@ -46,6 +46,6 @@ int main(int argc, char **argv) {
         *push(&contents, &app) = parse_c_file(&app, &files, PATHS[i]);
     }
 
-    write_file(&app, &files, UNIT_PATH, file_starts, contents);
+    write_file(&app, UNIT_PATH, file_starts, contents);
     return 0;
 }
