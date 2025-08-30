@@ -9,6 +9,7 @@
     #include "arena.h"
     #include "parser.h"
     #include "writer.h"
+    #include "compile.h"
 #endif
 
 #define UNIT_PATH "goc_unit.c"
@@ -23,6 +24,8 @@ static const char *PATHS[] = {
     "src/parser.h",
     "src/writer.h",
     "src/writer.c",
+    "src/compile.c",
+    "src/compile.h",
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
@@ -47,5 +50,8 @@ int main(int argc, char **argv) {
     }
 
     write_file(&app, UNIT_PATH, file_starts, contents);
+    // TODO: store errors
+    goc_compile(UNIT_PATH);
+
     return 0;
 }

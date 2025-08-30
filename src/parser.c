@@ -164,8 +164,6 @@ CharRange consume_func_or_global(
     }
     if (toks->data[*pos].type != R_EOF) *pos += 1;
 
-    // TODO: iterate backwards to check identifier for 
-    // redefinitions or maybe do it later when correcting errors
     return (CharRange){
         .start = start,
         .end_char = toks->data[*pos - 1],
