@@ -1,8 +1,10 @@
-#include "stdio.h"
-#include "assert.h"
-#include "string.h"
+#include <stdio.h>
+#include <assert.h>
+#include <string.h>
 
-#include "tokenize.h"
+#if !GOC_SELF_BUILD
+    #include "tokenize.h"
+#endif
 
 bool is_ident_start(char character) {
     return character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z';
@@ -108,6 +110,22 @@ Token consume_compiler_instruction(
         tok.type = C_DEFINE;
     } else if   (diff == 7 && strncmp(source + tok.beg, "#pragma", diff) == 0) {
         tok.type = C_PRAGMA;
+    } else if   (diff == 6 && strncmp(source + tok.beg, "#undef", diff) == 0) {
+        tok.type = C_UNDEF;
+    } else if   (diff == 3 && strncmp(source + tok.beg, "#if", diff) == 0) {
+        tok.type = C_IF;
+    } else if   (diff == 6 && strncmp(source + tok.beg, "#ifdef", diff) == 0) {
+        tok.type = C_IFDEF;
+    } else if   (diff == 7 && strncmp(source + tok.beg, "#ifndef", diff) == 0) {
+        tok.type = C_IFNDEF;
+    } else if   (diff == 5 && strncmp(source + tok.beg, "#else", diff) == 0) {
+        tok.type = C_ELSE;
+    } else if   (diff == 5 && strncmp(source + tok.beg, "#elif", diff) == 0) {
+        tok.type = C_ELIF;
+    } else if   (diff == 6 && strncmp(source + tok.beg, "#endif", diff) == 0) {
+        tok.type = C_ENDIF;
+    } else if   (diff == 6 && strncmp(source + tok.beg, "#error", diff) == 0) {
+        tok.type = C_ERROR;
     } else {
         printf("ERROR: either unknown compiler intrinsic or invalid c file -> `%s`, line=%d\n", path, line);
         assert(false);
@@ -202,6 +220,6 @@ ArrayToken tokenize(
         } else { pos += 1; }
     }
 
-    *push(&tokens, arena) = (Token){.beg = len, .type = R_EOF};
+    *push(&tokens, arena) = (Token){.beg = len, .line = line, .type = R_EOF};
     return tokens;
 }

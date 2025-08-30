@@ -1,33 +1,42 @@
-#ifndef TOKENIZE_H
-#define TOKENIZE_H
+#ifndef TOKENIZE_H_
+#define TOKENIZE_H_
 
-#include "stdint.h"
-#include "stddef.h"
-
-#include "arena.h"
+#if !GOC_SELF_BUILD
+    #include "arena.h"
+#endif
 
 typedef enum TokenType {
     T_ENUM      = 0,
     T_STRUCT    = 1,
     T_TYPEDEF   = 2,
     T_IDENT     = 3,
-    C_PRAGMA    = 4,
-    C_DEFINE    = 5,
-    C_INCLUDE   = 6,
 
-    O_EQ        = 8,
-    TT_L_BRACE  = 9,
-    TT_R_BRACE  = 10,
-    TT_L_PAREN  = 11,
-    TT_R_PAREN  = 12,
-    TT_L_BRACKET= 13,
-    TT_R_BRACKET= 14,
-    TT_COMMA    = 15,
-    TT_SEMICOLON= 16,
-    TT_BACKSLASH= 17,
+    C_IF        = 20,
+    C_IFDEF     = 21,
+    C_IFNDEF    = 22,
+    C_ELSE      = 23,
+    C_ELIF      = 24,
+    C_ENDIF     = 25,
+    C_UNDEF     = 26,
+    C_ERROR     = 27,
+    C_PRAGMA    = 28,
+    C_DEFINE    = 29,
+    C_INCLUDE   = 30,
 
-    R_EOF       = 30,
-    R_IGNORE    = 31,
+    O_EQ        = 40,
+
+    TT_L_BRACE  = 60,
+    TT_R_BRACE  = 61,
+    TT_L_PAREN  = 62,
+    TT_R_PAREN  = 63,
+    TT_L_BRACKET= 64,
+    TT_R_BRACKET= 65,
+    TT_COMMA    = 66,
+    TT_SEMICOLON= 67,
+    TT_BACKSLASH= 68,
+
+    R_EOF       = 80,
+    R_IGNORE    = 81,
 } TokenType;
 
 typedef struct Token {
@@ -42,8 +51,8 @@ typedef struct ArrayToken {
     ptrdiff_t cap;
 } ArrayToken;
 
+bool is_ident(char character);
 ArrayToken tokenize(Arena *arena, const char const *path, const char *source, uint32_t len);
 
-#endif /* TOKENIZE_H */
-
+#endif /* TOKENIZE_H_ */
 

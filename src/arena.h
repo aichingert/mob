@@ -1,6 +1,11 @@
 #ifndef ARENA_H
 #define ARENA_H
 
+#if !GOC_SELF_BUILD
+    #include <stdint.h>
+    #include <stddef.h>
+#endif
+
 typedef struct Arena {
     char *beg;
     char *end;
@@ -27,3 +32,4 @@ void grow(void *slice, ptrdiff_t size, Arena *a);
 
 
 #endif /* ARENA_H */
+

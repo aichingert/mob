@@ -5,7 +5,9 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#include "arena.h"
+#if !GOC_SELF_BUILD
+    #include "arena.h"
+#endif
 
 void *arena_alloc(Arena *a, ptrdiff_t size, ptrdiff_t align, ptrdiff_t count, bool zero) {
     ptrdiff_t padding = -(uintptr_t)a->beg & (align - 1);

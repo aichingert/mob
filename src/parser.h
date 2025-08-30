@@ -1,8 +1,10 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef PARSER_H_
+#define PARSER_H_
 
-#include "arena.h"
-#include "tokenize.h"
+#if !GOC_SELF_BUILD
+    #include "arena.h"
+    #include "tokenize.h"
+#endif
 
 typedef struct LineRange {
     Token start;
@@ -31,6 +33,7 @@ typedef struct FileContent {
     ArrayLineRange pragmas;
     ArrayLineRange defines;
     ArrayLineRange includes;
+    ArrayLineRange compiler_ifs;
 
     ArrayCharRange enums;
     ArrayCharRange structs;
@@ -39,6 +42,18 @@ typedef struct FileContent {
     ArrayCharRange functions;
 } FileContent;
 
-FileContent parse_c_file(Arena *arena, Arena scratch, char *path);
+typedef struct ArrayFileContent {
+    FileContent *data;
+    ptrdiff_t len;
+    ptrdiff_t cap;
+} ArrayFileContent;
 
-#endif /* PARSER_H */
+typedef struct ArrayCharPtr {
+    char **data;
+    ptrdiff_t len;
+    ptrdiff_t cap;
+} ArrayCharPtr;
+
+FileContent parse_c_file(Arena *arena, Arena *scratch, const char *path);
+
+#endif /* PARSER_H_ */
