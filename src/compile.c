@@ -5,9 +5,17 @@
     #include "compile.h"
 #endif
 
-void goc_compile(const char *path) {
-    /*
-    FILE *process = popen("/usr/bin/gcc", "r");
+void concat(const char *a, const char *b, char *buf) {
+    while (*a != '\0') *buf++ = *a++;
+    while (*b != '\0') *buf++ = *b++;
+}
+
+void goc_compile(const char *path, FileSections fs, ArrayFileContent content) {
+    char cmd[1024] = {0};
+    concat("/usr/bin/cc -DGOC_SELF_BUILD=1 ", path, cmd);
+
+    printf("%s\n", cmd);
+    FILE *process = popen(cmd, "r");
     if (process == NULL) {
         printf("ERROR\n");
         return;
@@ -20,5 +28,4 @@ void goc_compile(const char *path) {
     } 
 
     pclose(process);
-    */
 }

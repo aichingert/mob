@@ -15,6 +15,7 @@
 #define UNIT_PATH "goc_unit.c"
 
 static const char *PATHS[] = {
+    /*
     "src/goc.c",
     "src/arena.c",
     "src/arena.h",
@@ -26,6 +27,9 @@ static const char *PATHS[] = {
     "src/writer.c",
     "src/compile.c",
     "src/compile.h",
+    */
+    "example/app.c",
+    "example/math.c",
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
@@ -64,7 +68,7 @@ int main(int argc, char **argv) {
     printf("func-def:\t%d\n", fs.function_define_end);    
 
     // TODO: store errors
-    goc_compile(UNIT_PATH);
+    goc_compile(UNIT_PATH, fs, contents);
 
     return 0;
 }
