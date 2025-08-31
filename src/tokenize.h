@@ -52,7 +52,7 @@ typedef struct ArrayToken {
 } ArrayToken;
 
 bool is_ident(char character);
-ArrayToken tokenize(Arena *arena, const char const *path, const char *source, uint32_t len);
+ArrayToken tokenize(Arena *arena, const char *path, const char *source, uint32_t len);
 
 #endif /* TOKENIZE_H_ */
 

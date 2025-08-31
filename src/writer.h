@@ -12,7 +12,20 @@ typedef struct StringBuilder {
     ptrdiff_t cap;
 } StringBuilder;
 
-void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents);
+typedef struct FileSections {
+    uint32_t include_end;
+    uint32_t define_end;
+    uint32_t pragma_end;
+    uint32_t enum_end;
+    uint32_t struct_declare_end;
+    uint32_t struct_define_end;
+    uint32_t compiler_if_end;
+    uint32_t global_variable_end;
+    uint32_t function_header_end;
+    uint32_t function_define_end;
+} FileSections;
+
+FileSections write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents);
 
 #endif /* WRITER_H_ */
 

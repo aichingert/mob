@@ -49,7 +49,20 @@ int main(int argc, char **argv) {
         *push(&contents, &app) = parse_c_file(&app, &files, PATHS[i]);
     }
 
-    write_file(&app, UNIT_PATH, file_starts, contents);
+    FileSections fs = write_file(&app, UNIT_PATH, file_starts, contents);
+
+    printf("include:\t%d\n", fs.include_end);
+    printf("define:\t%d\n", fs.define_end);
+    printf("pragma:\t%d\n", fs.pragma_end);
+
+    printf("enums:\t%d\n", fs.enum_end);
+    printf("struct-dec:\t%d\n", fs.struct_declare_end);
+    printf("struct-def:\t%d\n", fs.struct_define_end);
+    printf("compiler if:\t%d\n", fs.compiler_if_end);
+    printf("global var:\t%d\n", fs.global_variable_end);
+    printf("func-head:\t%d\n", fs.function_header_end);
+    printf("func-def:\t%d\n", fs.function_define_end);    
+
     // TODO: store errors
     goc_compile(UNIT_PATH);
 

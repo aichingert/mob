@@ -1,10 +1,10 @@
 #ifndef ARENA_H
 #define ARENA_H
 
-#if !GOC_SELF_BUILD
-    #include <stdint.h>
-    #include <stddef.h>
-#endif
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdalign.h>
 
 typedef struct Arena {
     char *beg;

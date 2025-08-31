@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/mman.h>
 
 #if !GOC_SELF_BUILD

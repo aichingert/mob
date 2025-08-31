@@ -89,7 +89,7 @@ Token consume_compiler_instruction(
         uint32_t line,
         uint32_t len, 
         const char *source, 
-        const char const *path
+        const char *path
 ) {
     Token tok = {
         .beg = *pos,
@@ -172,7 +172,7 @@ Token consume_o(
 
 ArrayToken tokenize(
         Arena *arena, 
-        const char const *path, 
+        const char *path, 
         const char *source, 
         uint32_t len
 ) {

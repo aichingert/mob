@@ -7,13 +7,23 @@
     #include "tokenize.h"
 #endif
 
-void append_string(Arena *arena, StringBuilder *sb, const char *str) {
-    for (uint32_t i = 0; i < strlen(str); i++) {
-        *push(sb, arena) = str[i];
-    }
+void append_newline(Arena *arena, StringBuilder *sb, uint32_t *line_nr) {
+    *line_nr += 1;
+    *push(sb, arena) = '\n';
 }
 
-void append_line_range(
+uint32_t append_string(Arena *arena, StringBuilder *sb, const char *str) {
+    uint32_t lines = 0;
+
+    for (uint32_t i = 0; i < strlen(str); i++) {
+        *push(sb, arena) = str[i];
+        if (str[i] == '\n') lines += 1;
+    }
+
+    return lines;
+}
+
+uint32_t append_line_range(
         Arena *arena, 
         StringBuilder *sb, 
         LineRange lr, 
@@ -28,20 +38,26 @@ void append_line_range(
         *push(sb, arena) = source[pos];
         pos += 1;
     }
+
+    return line - lr.start.line;
 }
 
-void append_line_ranges(
+uint32_t append_line_ranges(
         Arena *arena,
         StringBuilder *sb,
         ArrayLineRange alr,
         const char *source
 ) {
+    uint32_t lines = 0;
+
     for (uint32_t i = 0; i < alr.len; i++) {
-        append_line_range(arena, sb, alr.data[i], source);
+        lines += append_line_range(arena, sb, alr.data[i], source);
     }
+
+    return lines;
 }
 
-void append_char_range(
+uint32_t append_char_range(
         Arena *arena,
         StringBuilder *sb,
         CharRange cr,
@@ -49,22 +65,30 @@ void append_char_range(
 ) {
     uint32_t pos = cr.start.beg;
     uint32_t end = cr.end_char.beg;
+    uint32_t line = 0;
 
     while (pos < end) {
+        if (source[pos] == '\n') line += 1;
         *push(sb, arena) = source[pos];
         pos += 1;
     }
+
+    return line;
 }
 
-void append_char_ranges(
+uint32_t append_char_ranges(
         Arena *arena,
         StringBuilder *sb,
         ArrayCharRange acr,
         const char *source
 ) {
+    uint32_t lines = 0;
+
     for (uint32_t i = 0; i < acr.len; i++) {
-        append_char_range(arena, sb, acr.data[i], source);
+        lines += append_char_range(arena, sb, acr.data[i], source);
     }
+
+    return lines;
 }
 
 void append_ident(
@@ -81,32 +105,37 @@ void append_ident(
     }
 }
 
-void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents) {
+FileSections write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents) {
     FILE *unit_file = fopen(create_path, "w");
     if (unit_file == NULL) {
-        printf("Error: unable to create `%create_path`\n", create_path);
+        printf("Error: unable to create `%s`\n", create_path);
         exit(1);
     }
 
+    uint32_t line_nr = 0;
+    FileSections fs = {0};
     StringBuilder sb = {0};
 
     // APPENDING INCLUDES
     for (uint32_t i = 0; i < contents.len; i++) {
-        append_line_ranges(arena, &sb, contents.data[i].includes, file_starts.data[i]);
+        line_nr += append_line_ranges(arena, &sb, contents.data[i].includes, file_starts.data[i]);
     }
-    *push(&sb, arena) = '\n';
+    append_newline(arena, &sb, &line_nr);
+    fs.include_end = line_nr;
 
     // APPENDING DEFINES
     for (uint32_t i = 0; i < contents.len; i++) {
-        append_line_ranges(arena, &sb, contents.data[i].defines, file_starts.data[i]);
+        line_nr += append_line_ranges(arena, &sb, contents.data[i].defines, file_starts.data[i]);
     }
-    *push(&sb, arena) = '\n';
+    append_newline(arena, &sb, &line_nr);
+    fs.define_end = line_nr;
 
     // APPENDING PRAGMAS
     for (uint32_t i = 0; i < contents.len; i++) {
-        append_line_ranges(arena, &sb, contents.data[i].pragmas, file_starts.data[i]);
+        line_nr += append_line_ranges(arena, &sb, contents.data[i].pragmas, file_starts.data[i]);
     }
-    *push(&sb, arena) = '\n';
+    append_newline(arena, &sb, &line_nr);
+    fs.pragma_end = line_nr;
  
     // APPENDING ENUMS
     for (uint32_t i = 0; i < contents.len; i++) {
@@ -115,12 +144,13 @@ void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts,
 
         for (uint32_t j = 0; j < enums.len; j++) {
             append_string(arena, &sb, "typedef enum ");
-            append_char_range(arena, &sb, enums.data[j], source);
+            line_nr += append_char_range(arena, &sb, enums.data[j], source);
             append_ident(arena, &sb, enums.data[j], source);
-            append_string(arena, &sb, ";\n\n");
+            line_nr += append_string(arena, &sb, ";\n\n");
         }
     }
-    *push(&sb, arena) = '\n';
+    append_newline(arena, &sb, &line_nr);
+    fs.enum_end = line_nr;
 
     // APPENDING STRUCTS
     for (uint32_t i = 0; i < contents.len; i++) {
@@ -132,10 +162,11 @@ void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts,
             append_ident(arena, &sb, structs.data[j], source);
             *push(&sb, arena) = ' ';
             append_ident(arena, &sb, structs.data[j], source);
-            append_string(arena, &sb, ";\n");
+            line_nr += append_string(arena, &sb, ";\n");
         }
     }
-    *push(&sb, arena) = '\n';
+    append_newline(arena, &sb, &line_nr);
+    fs.struct_declare_end = line_nr;
 
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange structs = contents.data[i].structs;
@@ -143,18 +174,20 @@ void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts,
 
         for (uint32_t j = 0; j < structs.len; j++) {
             append_string(arena, &sb, "typedef struct ");
-            append_char_range(arena, &sb, structs.data[j], source);
+            line_nr += append_char_range(arena, &sb, structs.data[j], source);
             *push(&sb, arena) = ' ';
             append_ident(arena, &sb, structs.data[j], source);
-            append_string(arena, &sb, ";\n\n");
+            line_nr += append_string(arena, &sb, ";\n\n");
         }
     }
+    fs.struct_define_end = line_nr;
 
     // APPENDING compiler ifs
     for (uint32_t i = 0; i < contents.len; i++) {
-        append_line_ranges(arena, &sb, contents.data[i].compiler_ifs, file_starts.data[i]);
+        line_nr += append_line_ranges(arena, &sb, contents.data[i].compiler_ifs, file_starts.data[i]);
     }
-    *push(&sb, arena) = '\n';
+    append_newline(arena, &sb, &line_nr);
+    fs.compiler_if_end = line_nr;
 
     // APPENDING globals
     for (uint32_t i = 0; i < contents.len; i++) {
@@ -162,11 +195,12 @@ void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts,
         const char *source = file_starts.data[i];
 
         for (uint32_t j = 0; j < globals.len; j++) {
-            append_char_range(arena, &sb, globals.data[j], source);
-            append_string(arena, &sb, ";\n");
+            line_nr += append_char_range(arena, &sb, globals.data[j], source);
+            line_nr += append_string(arena, &sb, ";\n");
         }
     }
-    *push(&sb, arena) = '\n'; 
+    append_newline(arena, &sb, &line_nr);
+    fs.global_variable_end = line_nr;
 
     // APPEND functions
     for (uint32_t i = 0; i < contents.len; i++) {
@@ -177,14 +211,16 @@ void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts,
             uint32_t pos = funcs.data[j].start.beg;
 
             while (source[pos] != '{') {
+                if (source[pos] == '\n') line_nr += 1;
                 *push(&sb, arena) = source[pos];
                 pos += 1;
             }
             sb.data[sb.len - 1] = ';';
-            *push(&sb, arena) = '\n';
+            append_newline(arena, &sb, &line_nr);
         }
     }
-    *push(&sb, arena) = '\n';
+    append_newline(arena, &sb, &line_nr);
+    fs.function_header_end = line_nr;
 
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange funcs = contents.data[i].functions;
@@ -195,13 +231,17 @@ void write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts,
             uint32_t end = funcs.data[j].end_char.beg;
 
             while (pos <= end) {
+                if (source[pos] == '\n') line_nr += 1;
                 *push(&sb, arena) = source[pos];
                 pos += 1;
             }
-            append_string(arena, &sb, "\n\n");
+            line_nr += append_string(arena, &sb, "\n\n");
         }
     }
+    fs.function_define_end = line_nr;
 
     fwrite(sb.data, sizeof(sb.data[0]), sb.len, unit_file);
     fclose(unit_file);
+
+    return fs;
 }
