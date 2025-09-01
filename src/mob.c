@@ -5,18 +5,19 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "arena.h"
     #include "parser.h"
     #include "writer.h"
     #include "compile.h"
 #endif
 
-#define UNIT_PATH "goc_unit.c"
+#define UNIT_PATH       "mob_unit.c"
+#define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0])
 
 static const char *PATHS[] = {
     /*
-    "src/goc.c",
+    "src/MOB.c",
     "src/arena.c",
     "src/arena.h",
     "src/tokenize.c",
@@ -68,7 +69,7 @@ int main(int argc, char **argv) {
     printf("func-def:\t%d\n", fs.function_define_end);    
 
     // TODO: store errors
-    goc_compile(UNIT_PATH, fs, contents);
+    mob_compile(&app, UNIT_PATH, UNIT_PATH_LEN, fs, contents);
 
     return 0;
 }

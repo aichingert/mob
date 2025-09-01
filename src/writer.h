@@ -1,7 +1,7 @@
 #ifndef WRITER_H_
 #define WRITER_H_
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "parser.h"
 #endif
 
@@ -25,6 +25,7 @@ typedef struct FileSections {
     uint32_t function_define_end;
 } FileSections;
 
+uint32_t append_string(Arena *arena, StringBuilder *sb, const char *str);
 FileSections write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents);
 
 #endif /* WRITER_H_ */

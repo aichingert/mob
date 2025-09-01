@@ -1,11 +1,11 @@
 #ifndef COMPILE_H_
 #define COMPILE_H_
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "parser.h"
     #include "writer.h"
 #endif
 
-void goc_compile(const char *path, FileSections fs, ArrayFileContent content);
+void mob_compile(Arena *arena, const char *path, uint32_t path_len, FileSections fs, ArrayFileContent content);
 
 #endif /* COMPILE_H_ */

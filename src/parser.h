@@ -1,7 +1,7 @@
 #ifndef PARSER_H_
 #define PARSER_H_
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "arena.h"
     #include "tokenize.h"
 #endif
@@ -53,6 +53,7 @@ typedef struct ArrayCharPtr {
     ptrdiff_t cap;
 } ArrayCharPtr;
 
+char *read_file(Arena *arena, FILE *file, uint32_t *len);
 FileContent parse_c_file(Arena *arena, Arena *scratch, const char *path);
 
 #endif /* PARSER_H_ */

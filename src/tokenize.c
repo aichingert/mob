@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <string.h>
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "tokenize.h"
 #endif
 

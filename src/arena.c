@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <sys/mman.h>
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "arena.h"
 #endif
 

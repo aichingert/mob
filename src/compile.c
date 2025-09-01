@@ -1,31 +1,93 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
+    #include "arena.h"
+    #include "writer.h"
     #include "compile.h"
 #endif
 
-void concat(const char *a, const char *b, char *buf) {
-    while (*a != '\0') *buf++ = *a++;
-    while (*b != '\0') *buf++ = *b++;
+
+void concat_with_space(const char **s, uint32_t s_len, char *buf) {
+    for (uint32_t i = 0; i < s_len; i++) {
+        while (*s[i] != '\0') *buf++ = *s[i]++;
+        *buf++ = ' ';
+    }
 }
 
-void goc_compile(const char *path, FileSections fs, ArrayFileContent content) {
-    char cmd[1024] = {0};
-    concat("/usr/bin/cc -DGOC_SELF_BUILD=1 ", path, cmd);
+bool is_duplicated_error(uint32_t line, FileSections fs) {
+    return !(
+            line >= fs.enum_end && line < fs.struct_declare_end
+            || 
+            line >= fs.global_variable_end && line < fs.function_header_end);
+}
 
-    printf("%s\n", cmd);
-    FILE *process = popen(cmd, "r");
-    if (process == NULL) {
-        printf("ERROR\n");
-        return;
-    } 
+void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path) {
+    *pos += 1;
+}
+
+LineRange error_extract_position(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
+    *pos += path_len;
+
+    uint32_t line_nr = 0;
+    uint32_t position = 0;
+
+    while (*pos < sb.len && sb.data[*pos] != ':') {
+        line_nr = (line_nr * 10) + sb.data[*pos] - '0';
+        *pos += 1;
+    }
+    *pos += 1;
+
+    while (*pos < sb.len && sb.data[*pos] != ':') {
+        position = (position * 10) + sb.data[*pos] - '0';
+        *pos += 1;
+    }
+    *pos += 1;
+
+    return (LineRange){
+        .start = (Token){ .beg = position },
+        .end_line = line_nr,
+    };
+}
+
+void mob_compile(Arena *arena, const char *path, uint32_t path_len, FileSections fs, ArrayFileContent content) {
+    char cmd[1024] = {0};
+    const char *strs[] = {
+        "/usr/bin/cc -Wextra -Wall -fsanitize=leak -DMOB_SELF_BUILD=1", 
+        path, 
+        "2>&1"
+    };
+    concat_with_space(strs, sizeof(strs) / sizeof(strs[0]), cmd);
 
     char buf[1024];
+    StringBuilder sb = {0};
+    StringBuilder error_msg =  {0};
+    FILE *out = popen(cmd, "r");
 
-    while (fgets(buf, sizeof(buf), process) != NULL) {
-        printf("%s\n", buf);
+    if (out == NULL) {
+        printf("ERROR: cannot execute command\n");
+        exit(1);
     } 
 
-    pclose(process);
+    while (fgets(buf, sizeof(buf), out) != NULL) {
+        append_string(arena, &sb, buf);
+    }
+    pclose(out);
+
+    uint32_t pos = 0;
+
+    while (pos < sb.len) {
+        LineRange lr = error_extract_position(&pos, sb, path_len);
+
+        uint32_t line_nbr = lr.end_line;
+        uint32_t position = lr.start.beg;
+
+        if (is_duplicated_error(line_nbr, fs)) {
+            error_skip_to_next(&pos, sb, path);
+            continue;
+        }
+
+        printf("line:%d - pos:%d\n", line_nbr, position);
+    }
+
 }

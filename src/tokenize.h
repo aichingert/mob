@@ -1,7 +1,7 @@
 #ifndef TOKENIZE_H_
 #define TOKENIZE_H_
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "arena.h"
 #endif
 

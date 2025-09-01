@@ -6,7 +6,7 @@
 #include <sys/mman.h>
 #include <stdlib.h>
 
-#if !GOC_SELF_BUILD
+#if !MOB_SELF_BUILD
     #include "parser.h"
     #include "tokenize.h"
 #endif
@@ -19,18 +19,16 @@ bool is_func(uint32_t pos, ArrayToken *toks) {
     return pos < toks->len && toks->data[pos].type == TT_L_BRACE;
 }
 
-char* read_file(Arena *arena, const char *path, uint32_t *len) {
-    FILE *f = fopen(path, "r");
-    if (f == NULL) assert(false && "error: file not found");
+char* read_file(Arena *arena, FILE *file, uint32_t *len) {
+    if (file == NULL) assert(false && "Error(read_file): file is null");
 
-    fseek(f, 0, SEEK_END);
-    *len = ftell(f);
-    rewind(f);
+    fseek(file, 0, SEEK_END);
+    *len = ftell(file);
+    rewind(file);
 
     char *buf = alloc(arena, char, *len, false);
-    fread(buf, sizeof(char), *len, f);
+    fread(buf, sizeof(char), *len, file);
 
-    fclose(f);
     return buf;
 }
 
@@ -173,7 +171,9 @@ CharRange consume_func_or_global(
 FileContent parse_c_file(Arena *arena, Arena *files, const char *path) {
     uint32_t len    = 0;
     uint32_t pos    = 0;
-    const char *source = read_file(files, path, &len);
+    FILE *file = fopen(path, "r");
+    const char *source = read_file(files, file, &len);
+    fclose(file);
 
     ArrayToken toks = tokenize(arena, path, source, len);
     FileContent content = {0};
