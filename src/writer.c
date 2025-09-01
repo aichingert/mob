@@ -105,7 +105,12 @@ void append_ident(
     }
 }
 
-FileSections write_file(Arena *arena, const char *create_path, ArrayCharPtr file_starts, ArrayFileContent contents) {
+FileSections write_file(
+        Arena *arena, 
+        const char *create_path, 
+        ArrayCharPtr file_starts, 
+        ArrayFileContent *contents
+) {
     FILE *unit_file = fopen(create_path, "w");
     if (unit_file == NULL) {
         printf("Error: unable to create `%s`\n", create_path);
@@ -118,7 +123,7 @@ FileSections write_file(Arena *arena, const char *create_path, ArrayCharPtr file
 
     // APPENDING INCLUDES
     for (uint32_t i = 0; i < contents.len; i++) {
-        line_nr += append_line_ranges(arena, &sb, contents.data[i].includes, file_starts.data[i]);
+        line_nr += append_line_ranges(arena, &sb, contents->data[i].includes, file_starts.data[i]);
     }
     append_newline(arena, &sb, &line_nr);
     fs.include_end = line_nr;

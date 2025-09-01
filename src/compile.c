@@ -16,18 +16,32 @@ void concat_with_space(const char **s, uint32_t s_len, char *buf) {
 }
 
 bool is_duplicated_error(uint32_t line, FileSections fs) {
-    return !(
-            line >= fs.enum_end && line < fs.struct_declare_end
-            || 
-            line >= fs.global_variable_end && line < fs.function_header_end);
+    return line >= fs.enum_end && line < fs.struct_declare_end
+        || line >= fs.global_variable_end && line < fs.function_header_end;
 }
 
-void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path) {
-    *pos += 1;
+void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint32_t path_len) {
+    while (*pos + path_len < sb.len) {
+        bool is_next_error = true;
+
+        // TODO: better skipping
+        for (uint32_t i = 0; i < path_len; i++) {
+            if (sb.data[*pos + i] != path[i]) {
+                is_next_error = false;
+                break;
+            }
+        }
+
+        if (is_next_error) {
+            return;
+        }
+
+        *pos += 1;
+    }
 }
 
 LineRange error_extract_position(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
-    *pos += path_len;
+    *pos += path_len + 1;
 
     uint32_t line_nr = 0;
     uint32_t position = 0;
@@ -50,7 +64,13 @@ LineRange error_extract_position(uint32_t *pos, StringBuilder sb, uint32_t path_
     };
 }
 
-void mob_compile(Arena *arena, const char *path, uint32_t path_len, FileSections fs, ArrayFileContent content) {
+void mob_compile(
+        Arena *arena, 
+        const char *path, 
+        uint32_t path_len, 
+        FileSections fs, 
+        ArrayFileContent content
+) {
     char cmd[1024] = {0};
     const char *strs[] = {
         "/usr/bin/cc -Wextra -Wall -fsanitize=leak -DMOB_SELF_BUILD=1", 
@@ -82,12 +102,16 @@ void mob_compile(Arena *arena, const char *path, uint32_t path_len, FileSections
         uint32_t line_nbr = lr.end_line;
         uint32_t position = lr.start.beg;
 
+        printf("line:%d - pos:%d \n", line_nbr, position);
+
         if (is_duplicated_error(line_nbr, fs)) {
-            error_skip_to_next(&pos, sb, path);
+            error_skip_to_next(&pos, sb, path, path_len);
             continue;
         }
 
-        printf("line:%d - pos:%d\n", line_nbr, position);
+        error_skip_to_next(&pos, sb, path, path_len);
+
+
     }
 
 }

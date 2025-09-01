@@ -13,7 +13,7 @@
 #endif
 
 #define UNIT_PATH       "mob_unit.c"
-#define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0])
+#define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0]) - 1
 
 static const char *PATHS[] = {
     /*
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
         *push(&contents, &app) = parse_c_file(&app, &files, PATHS[i]);
     }
 
-    FileSections fs = write_file(&app, UNIT_PATH, file_starts, contents);
+    FileSections fs = write_file(&app, UNIT_PATH, file_starts, &contents);
 
     printf("include:\t%d\n", fs.include_end);
     printf("define:\t%d\n", fs.define_end);
