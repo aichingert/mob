@@ -16,10 +16,9 @@
 #define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0]) - 1
 
 static const char *PATHS[] = {
-    /*
     "example/app.c",
     "example/math.c",
-    */
+    /*
     "src/mob.c",
     "src/arena.c",
     "src/arena.h",
@@ -31,6 +30,7 @@ static const char *PATHS[] = {
     "src/writer.c",
     "src/compile.c",
     "src/compile.h",
+    */
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 

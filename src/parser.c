@@ -11,9 +11,23 @@
     #include "tokenize.h"
 #endif
 
+
+// ( | =
+// ( -> {, =, ;
+//int (*f)(int, int) = xyz;
 bool is_func(uint32_t pos, ArrayToken *toks) {
-    while (pos < toks->len && !(toks->data[pos].type == TT_L_BRACE || toks->data[pos].type == O_EQ)) {
+    while (pos < toks->len && !(toks->data[pos].type == TT_L_PAREN || toks->data[pos].type == O_EQ)) {
         pos += 1;
+    }
+
+    if (pos < toks->len && toks->data[pos].type == TT_L_PAREN) {
+        while (pos < toks->len && (toks->data[pos].type != TT_L_BRACE 
+                                && toks->data[pos].type != O_EQ
+                                && toks->data[pos].type != TT_SEMICOLON)) {
+            pos += 1;
+        }
+
+        return pos < toks->len && toks->data[pos].type == TT_L_BRACE;
     }
 
     return pos < toks->len && toks->data[pos].type == TT_L_BRACE;

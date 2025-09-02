@@ -5,7 +5,7 @@ struct Data {
     int place;
 };
 
-int (*f)(int, int) = ads;
+int (*f)(int, int) = add;
 
 int main(void) {
     printf("%d\n", f(10, 5));
