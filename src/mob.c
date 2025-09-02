@@ -12,13 +12,19 @@
     #include "compile.h"
 #endif
 
-#define UNIT_PATH       "mob_unit.c"
+#define UNIT_PATH       "mob.c"
 #define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0]) - 1
 
+static const char *FLAGS[] = {
+    "-Wall",
+    "-Wextra",
+    "-DMOB_SELF_BUILD=1",
+};
+static const uint32_t FLAG_COUNT = sizeof(FLAGS) / sizeof(FLAGS[0]);
+
+// TODO: think about recursive directory 
+// decent to find other c files
 static const char *PATHS[] = {
-    "example/app.c",
-    "example/math.c",
-    /*
     "src/mob.c",
     "src/arena.c",
     "src/arena.h",
@@ -30,7 +36,6 @@ static const char *PATHS[] = {
     "src/writer.c",
     "src/compile.c",
     "src/compile.h",
-    */
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
@@ -55,7 +60,7 @@ int main(void) {
     }
 
     FileSections fs = write_file(&app, UNIT_PATH, file_starts, contents);
-    mob_compile(&app, UNIT_PATH, UNIT_PATH_LEN, PATHS, &fs);
+    mob_compile(&app, UNIT_PATH, UNIT_PATH_LEN, FLAGS, FLAG_COUNT, PATHS, &fs);
 
     return 0;
 }

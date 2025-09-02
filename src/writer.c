@@ -250,6 +250,7 @@ FileSections write_file(
     }
     append_newline(arena, &sb, &line_nr);
     fs.compiler_if_end = line_nr;
+    fs.compiler_if_arr = fs.positions.len;
 
     // APPENDING function headers
     for (uint32_t i = 0; i < contents.len; i++) {

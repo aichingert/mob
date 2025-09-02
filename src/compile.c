@@ -31,13 +31,6 @@ uint32_t string_len_of_number(uint32_t number) {
     return len == 0 ? len + 1 : len;
 }
 
-void concat_with_space(const char **s, uint32_t s_len, char *buf) {
-    for (uint32_t i = 0; i < s_len; i++) {
-        while (*s[i] != '\0') *buf++ = *s[i]++;
-        *buf++ = ' ';
-    }
-}
-
 bool is_duplicated_error(uint32_t line, FileSections *fs) {
     return (line >= fs->enum_end        && line < fs->struct_declare_end)
         || (line >= fs->compiler_if_end && line < fs->function_header_end);
@@ -237,7 +230,7 @@ CopyPosition error_search_range(uint32_t line, uint32_t start, uint32_t end, Fil
         }
     }
 
-    printf("Error: this is a bug in mob please report it\n");
+    printf("Error: this is a bug in mob please report it -> `line=%d`\n", line);
     exit(1);
 }
 
@@ -300,27 +293,84 @@ uint32_t error_append_original_location(
     return line_nr;
 }
 
+void concat_compile_command(
+        const char *compiler_path, 
+        const char **flags,
+        uint32_t flags_len,
+        const char *c_source_path,
+        uint32_t c_source_path_len,
+        char *cmd
+) {
+    uint32_t cmd_pos = strlen(compiler_path);
+
+    for (uint32_t i = 0; i < cmd_pos; i++) {
+        cmd[i] = compiler_path[i];
+    }
+    cmd[cmd_pos] = ' ';
+    cmd_pos += 1;
+
+    for (uint32_t i = 0; i < flags_len; i++) {
+        uint32_t ith_flag_len = strlen(flags[i]);
+        uint32_t pos = 0;
+
+        while (pos < ith_flag_len) {
+            cmd[cmd_pos + pos] = flags[i][pos];
+            pos += 1;
+        }
+
+        cmd_pos += ith_flag_len;
+        cmd[cmd_pos] = ' ';
+        cmd_pos += 1;
+    }
+
+    for (uint32_t i = 0; i < c_source_path_len; i++) {
+        cmd[cmd_pos + i] = c_source_path[i];
+    }
+
+    // NOTE: appending executable name to be unit path without ending
+    cmd_pos += c_source_path_len;
+    cmd[cmd_pos++] = ' ';
+    cmd[cmd_pos++] = '-';
+    cmd[cmd_pos++] = 'o';
+    cmd[cmd_pos++] = ' ';
+
+    // TODO: could be asserted [SIZE, having a .c ending]
+    for (uint32_t i = 0; i < c_source_path_len - 2; i++) {
+        cmd[cmd_pos + i] = c_source_path[i];
+    }
+
+    // NOTE: appending redirect stderr to stdout
+    cmd_pos += c_source_path_len - 2;
+    cmd[cmd_pos] = ' ';
+    cmd_pos += 1;
+
+    const char *redirect = "2>&1";
+    uint32_t redirect_len = strlen(redirect);
+
+    for (uint32_t i = 0; i < redirect_len; i++) {
+        cmd[cmd_pos + i] = redirect[i];
+    }
+}
+
 void mob_compile(
         Arena *arena, 
         const char *unit_path, 
         uint32_t unit_path_len, 
+        const char **flags,
+        uint32_t flags_len,
         const char **paths,
         FileSections *fs
 ) {
-    char cmd[1024] = {0};
-    const char *strs[] = {
-        "/usr/bin/clang -Wextra -Wall -fsanitize=leak -DMOB_SELF_BUILD=1", 
-        unit_path, 
-        "2>&1"
-    };
-    concat_with_space(strs, sizeof(strs) / sizeof(strs[0]), cmd);
-
-    char buf[1024];
     uint32_t pos = 0;
+    char cmd[4096] = {0};
+    char buf[1024] = {0};
     StringBuilder sb = {0};
     StringBuilder error_msg =  {0};
-    FILE *out = popen(cmd, "r");
+    const char *compiler = "/usr/bin/cc";
 
+    concat_compile_command(compiler, flags, flags_len, unit_path, unit_path_len, cmd);
+
+    FILE *out = popen(cmd, "r");
     if (out == NULL) {
         printf("ERROR: cannot execute command\n");
         exit(1);
