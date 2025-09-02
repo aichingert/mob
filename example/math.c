@@ -6,6 +6,8 @@ struct Data {
 };
 
 Data merge_data(Data a, Data, b) {
+    printf("%d - %d\n", a.value, b.value);
+
     return (Data){
         .value = a.value + b.value,
         .place = a.place + b.place,
