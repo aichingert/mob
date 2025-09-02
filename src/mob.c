@@ -17,7 +17,10 @@
 
 static const char *PATHS[] = {
     /*
-    "src/MOB.c",
+    "example/app.c",
+    "example/math.c",
+    */
+    "src/mob.c",
     "src/arena.c",
     "src/arena.h",
     "src/tokenize.c",
@@ -28,13 +31,10 @@ static const char *PATHS[] = {
     "src/writer.c",
     "src/compile.c",
     "src/compile.h",
-    */
-    "example/app.c",
-    "example/math.c",
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
-int main(int argc, char **argv) {
+int main(void) {
     ptrdiff_t file_buffer_size = PATH_COUNT * 1024 * 1024;
 
     Arena app, files = {0};
@@ -49,27 +49,13 @@ int main(int argc, char **argv) {
 
     // NOTE: could be multithreaded
     for (uint32_t i = 0; i < PATH_COUNT; i++) {
-        printf("Proccessing: `%s`\n", PATHS[i]);
+        printf("[INFO]: proccessing -> `%s`\n", PATHS[i]);
         *push(&file_starts, &app) = files.beg;
         *push(&contents, &app) = parse_c_file(&app, &files, PATHS[i]);
     }
 
     FileSections fs = write_file(&app, UNIT_PATH, file_starts, contents);
-
-    printf("include:\t%d\n", fs.include_end);
-    printf("define:\t%d\n", fs.define_end);
-    printf("pragma:\t%d\n", fs.pragma_end);
-
-    printf("enums:\t%d\n", fs.enum_end);
-    printf("struct-dec:\t%d\n", fs.struct_declare_end);
-    printf("struct-def:\t%d\n", fs.struct_define_end);
-    printf("compiler if:\t%d\n", fs.compiler_if_end);
-    printf("global var:\t%d\n", fs.global_variable_end);
-    printf("func-head:\t%d\n", fs.function_header_end);
-    printf("func-def:\t%d\n", fs.function_define_end);    
-
-    // TODO: store errors
-    mob_compile(&app, UNIT_PATH, UNIT_PATH_LEN, PATHS, &fs, contents);
+    mob_compile(&app, UNIT_PATH, UNIT_PATH_LEN, PATHS, &fs);
 
     return 0;
 }

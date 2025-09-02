@@ -32,7 +32,7 @@ char* read_file(Arena *arena, FILE *file, uint32_t *len) {
     return buf;
 }
 
-LineRange consume_define_pragma_and_include(uint32_t *pos, ArrayToken *toks, const char *source) {
+LineRange consume_define_pragma_and_include(uint32_t *pos, ArrayToken *toks) {
     uint32_t iden = *pos;
     uint32_t line = toks->data[iden].line;
 
@@ -54,7 +54,7 @@ bool is_compiler_if_intrinsic(TokenType type) {
     return type == C_IF || type == C_IFDEF || type == C_IFNDEF;
 }
 
-LineRange consume_if(uint32_t *pos, ArrayToken *toks, const char *source) {
+LineRange consume_if(uint32_t *pos, ArrayToken *toks) {
     Token start = toks->data[*pos];
     uint16_t ifs = 1;
     *pos += 1;
@@ -72,7 +72,7 @@ LineRange consume_if(uint32_t *pos, ArrayToken *toks, const char *source) {
     };
 }
 
-CharRange consume_struct_or_enum(uint32_t *pos, ArrayToken *toks, const char *source) {
+CharRange consume_struct_or_enum(uint32_t *pos, ArrayToken *toks) {
     *pos += 1;
     assert(toks->data[*pos].type == T_IDENT && "Error: expected identifier after struct or enum");
 
@@ -100,7 +100,7 @@ CharRange consume_struct_or_enum(uint32_t *pos, ArrayToken *toks, const char *so
     };
 }
 
-CharRange consume_typedef(uint32_t *pos, ArrayToken *toks, const char *source) {
+CharRange consume_typedef(uint32_t *pos, ArrayToken *toks) {
     Token start = toks->data[*pos];
 
     *pos += 1;
@@ -123,7 +123,7 @@ CharRange consume_typedef(uint32_t *pos, ArrayToken *toks, const char *source) {
     };
 }
 
-CharRange consume_func(uint32_t *pos, ArrayToken *toks, const char *source) {
+CharRange consume_func(uint32_t *pos, ArrayToken *toks) {
     Token start = toks->data[*pos];
     uint16_t braces = 1;
 
@@ -148,11 +148,10 @@ CharRange consume_func(uint32_t *pos, ArrayToken *toks, const char *source) {
 CharRange consume_func_or_global(
         uint32_t *pos, 
         bool is_function, 
-        ArrayToken *toks, 
-        const char *source
+        ArrayToken *toks
 ) {
     if (is_function) {
-        return consume_func(pos, toks, source);
+        return consume_func(pos, toks);
     }
 
     Token start = toks->data[*pos];
@@ -182,25 +181,25 @@ FileContent parse_c_file(Arena *arena, Arena *files, const char *path) {
         TokenType type = toks.data[pos].type;
 
         if          (type == C_DEFINE) {
-            *push(&content.defines, arena) = consume_define_pragma_and_include(&pos, &toks, source);
+            *push(&content.defines, arena) = consume_define_pragma_and_include(&pos, &toks);
         } else if   (type == C_PRAGMA) {
-            *push(&content.pragmas, arena) = consume_define_pragma_and_include(&pos, &toks, source);
+            *push(&content.pragmas, arena) = consume_define_pragma_and_include(&pos, &toks);
         } else if   (type == C_INCLUDE || type == C_ERROR) {
-            *push(&content.includes, arena) = consume_define_pragma_and_include(&pos, &toks, source);
+            *push(&content.includes, arena) = consume_define_pragma_and_include(&pos, &toks);
         } else if   (is_compiler_if_intrinsic(type)) {
-            *push(&content.compiler_ifs, arena) = consume_if(&pos, &toks, source);
+            *push(&content.compiler_ifs, arena) = consume_if(&pos, &toks);
         } else if   (type == T_TYPEDEF) {
-            CharRange c_range = consume_typedef(&pos, &toks, source);
+            CharRange c_range = consume_typedef(&pos, &toks);
             if (c_range.start.beg == 0 && c_range.end_char.beg == 0) continue;
 
             *push(&content.typedefs, arena) = c_range;
         } else if   (type == T_ENUM) {
-            *push(&content.enums, arena) = consume_struct_or_enum(&pos, &toks, source);
+            *push(&content.enums, arena) = consume_struct_or_enum(&pos, &toks);
         } else if   (type == T_STRUCT) {
-            *push(&content.structs, arena) = consume_struct_or_enum(&pos, &toks, source);
+            *push(&content.structs, arena) = consume_struct_or_enum(&pos, &toks);
         } else if   (type == T_IDENT) {
             bool is_function = is_func(pos, &toks);
-            CharRange c_range = consume_func_or_global(&pos, is_function, &toks, source);
+            CharRange c_range = consume_func_or_global(&pos, is_function, &toks);
 
             if (is_function) {
                 *push(&content.functions, arena) = c_range;

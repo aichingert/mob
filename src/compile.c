@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 
 #if !MOB_SELF_BUILD
@@ -27,7 +28,7 @@ uint32_t string_len_of_number(uint32_t number) {
         len += 1;
     }
 
-    return len;
+    return len == 0 ? len + 1 : len;
 }
 
 void concat_with_space(const char **s, uint32_t s_len, char *buf) {
@@ -38,8 +39,8 @@ void concat_with_space(const char **s, uint32_t s_len, char *buf) {
 }
 
 bool is_duplicated_error(uint32_t line, FileSections *fs) {
-    return line >= fs->enum_end            && line < fs->struct_declare_end
-        || line >= fs->global_variable_end && line < fs->function_header_end;
+    return (line >= fs->enum_end        && line < fs->struct_declare_end)
+        || (line >= fs->compiler_if_end && line < fs->function_header_end);
 }
 
 bool is_include_error(uint32_t line, FileSections *fs) {
@@ -67,11 +68,11 @@ bool is_comp_if_error(uint32_t line, FileSections *fs) {
 }
 
 bool is_global_var_error(uint32_t line, FileSections *fs) {
-    return line >= fs->compiler_if_end && line < fs->global_variable_end;
+    return line >= fs->function_header_end && line < fs->global_variable_end;
 }
 
 bool is_function_error(uint32_t line, FileSections *fs) {
-    return line >= fs->function_header_end && line < fs->function_define_end;
+    return line >= fs->global_variable_end && line < fs->function_define_end;
 }
 
 void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint32_t path_len) {
@@ -94,6 +95,29 @@ void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint3
     }
 
     *pos = sb.len;
+}
+
+uint32_t error_skip_in_function(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
+    *pos += path_len + 1;
+    uint32_t advance = 0;
+    const char *in_function = " In function";
+    uint32_t len = strlen(in_function);
+
+    while (*pos + advance < sb.len && sb.data[*pos + advance] == in_function[advance]) {
+        advance += 1;
+    }
+
+    if (advance == len) {
+        *pos += advance;
+        while (*pos < sb.len && sb.data[*pos] != '\n') {
+            *pos += 1;
+        }
+        *pos += 1;
+    } else {
+        *pos -= path_len + 1;
+    }
+
+    return *pos;
 }
 
 LineRange error_extract_position(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
@@ -130,15 +154,14 @@ void error_append_remaining_till_next(
         uint32_t replace_line,
         uint32_t replace_with
 ) {
-    replace_line = reverse_number(replace_line);
-    uint32_t replace_with_rev = reverse_number(replace_with);
-    uint32_t replace_line_len = string_len_of_number(replace_line);
-    uint32_t replace_with_len = string_len_of_number(replace_with);
+    uint32_t replace_with_len = string_len_of_number(replace_with) + 10;
+    uint32_t put_left_of_pipe = 0;
 
-    uint32_t error_line = 0;
+    bool is_next_error = true;
+    bool is_left_of_pipe = false;
 
     while (*pos + unit_path_len < sb.len) {
-        bool is_next_error = true;
+        is_next_error = true;
 
         // TODO: better skipping
         for (uint32_t i = 0; i < unit_path_len; i++) {
@@ -149,35 +172,57 @@ void error_append_remaining_till_next(
         }
 
         if (is_next_error) return;
-
-        bool should_replace_number = true;
-        uint32_t cp_replace_line = replace_line;
-        uint32_t advance = 0;
-
-        while (*pos + advance < sb.len && cp_replace_line > 0) {
-            uint8_t d = cp_replace_line % 10;
-            cp_replace_line /= 10;
-
-            if (sb.data[*pos + advance] != d + '0') {
-                should_replace_number = false;
-                break;
+        if (!is_left_of_pipe) {
+            if (sb.data[*pos] == '\n') {
+                is_left_of_pipe = true;
+                put_left_of_pipe = 0;
             }
 
-            advance += 1;
-        }
-
-        if (should_replace_number) {
-            append_number(arena, new_error, replace_with_rev);
-            *pos += advance;
-        } else {
             *push(new_error, arena) = sb.data[*pos];
             *pos += 1;
+            continue;
         }
+
+        uint32_t number = 0;
+
+        while (*pos < sb.len && sb.data[*pos] >= '0' && sb.data[*pos] <= '9') {
+            number *= 10;
+            number += sb.data[*pos] - '0';
+            *pos += 1;
+        }
+
+        if          (number > 0) {
+            uint32_t adjusted_number = replace_with + number - replace_line;
+            put_left_of_pipe += string_len_of_number(adjusted_number);
+            append_number(arena, new_error, adjusted_number);
+        } else if   (sb.data[*pos] == '|') {
+            for (uint32_t i = 0; i < replace_with_len - put_left_of_pipe; i++) {
+                *push(new_error, arena) = ' ';
+            }
+
+            is_left_of_pipe = false;
+            put_left_of_pipe = 0;
+            *push(new_error, arena) = sb.data[*pos];
+            put_left_of_pipe += 1;
+        } else {
+            *push(new_error, arena) = sb.data[*pos];
+            put_left_of_pipe += 1;
+        } 
+
+        *pos += 1;
     }
 
     while (*pos < sb.len) {
+        if (is_left_of_pipe && sb.data[*pos] == '|') {
+            for (uint32_t i = 0; i < replace_with_len - put_left_of_pipe; i++) {
+                *push(new_error, arena) = ' ';
+            }
+            is_left_of_pipe = false;
+        }
+
         *push(new_error, arena) = sb.data[*pos];
         *pos += 1;
+        put_left_of_pipe += 1;
     }
 }
 
@@ -221,19 +266,33 @@ CopyPosition error_get_correct_location(uint32_t line, FileSections *fs) {
 
 uint32_t error_append_original_location(
         Arena *arena,
+        StringBuilder *sb,
         StringBuilder *err_msg, 
         const char **paths, 
+        uint32_t unit_path_len,
         uint32_t line, 
         uint32_t position,
+        uint32_t start,
+        uint32_t end,
         FileSections *fs
 ) {
     CopyPosition mapped_error_location = error_get_correct_location(line, fs);
     uint32_t off = line - mapped_error_location.start_line - 1;
     uint32_t line_nr = mapped_error_location.file_line + off;
+    if (line_nr == 0) {
+        line_nr = 1;
+    }
+
+    if (start != end) {
+        append_string(arena, err_msg, paths[mapped_error_location.file]);
+        for (uint32_t i = start + unit_path_len; i < end; i++) {
+            *push(err_msg, arena) = sb->data[i];
+        }
+    }
 
     append_string(arena, err_msg, paths[mapped_error_location.file]);
     *push(err_msg, arena) = ':';
-    append_number(arena, err_msg, reverse_number(line_nr));
+    append_number(arena, err_msg, line_nr);
     *push(err_msg, arena) = ':';
     append_number(arena, err_msg, position);
     *push(err_msg, arena) = ':';
@@ -246,12 +305,11 @@ void mob_compile(
         const char *unit_path, 
         uint32_t unit_path_len, 
         const char **paths,
-        FileSections *fs, 
-        ArrayFileContent content
+        FileSections *fs
 ) {
     char cmd[1024] = {0};
     const char *strs[] = {
-        "/usr/bin/cc -Wextra -Wall -fsanitize=leak -DMOB_SELF_BUILD=1", 
+        "/usr/bin/clang -Wextra -Wall -fsanitize=leak -DMOB_SELF_BUILD=1", 
         unit_path, 
         "2>&1"
     };
@@ -274,6 +332,8 @@ void mob_compile(
     pclose(out);
 
     while (pos < sb.len) {
+        uint32_t start = pos;
+        uint32_t end = error_skip_in_function(&pos, sb, unit_path_len);
         LineRange lr = error_extract_position(&pos, sb, unit_path_len);
 
         uint32_t line_nbr = lr.end_line;
@@ -284,9 +344,23 @@ void mob_compile(
             continue;
         }
 
-        uint32_t new_line = error_append_original_location(arena, &error_msg, paths, line_nbr, position, fs);
+        uint32_t new_line = error_append_original_location(
+                arena, 
+                &sb, 
+                &error_msg, 
+                paths, 
+                unit_path_len,
+                line_nbr, 
+                position, 
+                start, 
+                end, 
+                fs);
         error_append_remaining_till_next(arena, &pos, sb, &error_msg, unit_path, unit_path_len, line_nbr, new_line);
     }
 
-    printf("%s\n", error_msg.data);
+    if (sb.len == 0) {
+        printf("[INFO]: compiled -> `%s`\n", unit_path);
+    } else {
+        printf("%s\n", error_msg.data);
+    }
 }

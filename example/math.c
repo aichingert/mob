@@ -1,15 +1,15 @@
 #define MAX(a,b) (a) > (b) ? (a) : (b)
 #define MIN(a,b) (a) < (b) ? (a) : (b)
 
-struct Data {
-    int value;
-};
+int add(int a, int b) {
+    return a + b;
+}
 
-Data merge_data(Data a, Data, b) {
+Data merge_data(Data a, Data b) {
     printf("%d - %d\n", a.value, b.value);
 
     return (Data){
         .value = a.value + b.value,
         .place = a.place + b.place,
-    }
+    };
 }

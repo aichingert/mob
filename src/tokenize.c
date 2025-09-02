@@ -7,11 +7,12 @@
 #endif
 
 bool is_ident_start(char character) {
-    return character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z';
+    return (character >= 'a' && character <= 'z') 
+        || (character >= 'A' && character <= 'Z');
 }
 
 bool is_ident(char character) {
-    return is_ident_start(character) || character >= '0' && character <= '9';
+    return is_ident_start(character) || (character >= '0' && character <= '9');
 }
 
 bool is_line_comment(uint32_t pos, uint32_t len, const char *source) {

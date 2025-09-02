@@ -39,9 +39,9 @@ typedef struct FileSections {
     uint32_t struct_arr;
     uint32_t compiler_if_end;
     uint32_t compiler_if_arr;
+    uint32_t function_header_end;
     uint32_t global_variable_end;
     uint32_t global_variable_arr;
-    uint32_t function_header_end;
     uint32_t function_define_end;
     uint32_t function_arr;
 

@@ -29,11 +29,25 @@ void append_number(Arena *arena, StringBuilder *sb, int64_t number) {
         number *= -1;
     }
 
-    while (number > 0) {
+    int64_t copy = number;
+    uint32_t len = 0;
+
+    while (copy > 0) {
+        len += 1;
+        copy /= 10;
+        *push(sb, arena) = '0';
+    }
+
+    if (len == 0) {
+        *push(sb, arena) = '0';
+        return;
+    }
+
+    for (uint32_t i = 1; i <= len; i++) {
         uint8_t d = number % 10;
         number /= 10;
-        *push(sb, arena) = d + '0';
-    }
+        sb->data[sb->len - i] = d + '0';
+    } 
 }
 
 uint32_t append_line_range(
@@ -237,6 +251,27 @@ FileSections write_file(
     append_newline(arena, &sb, &line_nr);
     fs.compiler_if_end = line_nr;
 
+    // APPENDING function headers
+    for (uint32_t i = 0; i < contents.len; i++) {
+        ArrayCharRange funcs = contents.data[i].functions;
+        const char *source = file_starts.data[i];
+
+        for (uint32_t j = 0; j < funcs.len; j++) {
+            uint32_t pos = funcs.data[j].start.beg;
+
+            while (source[pos] != '{') {
+                if (source[pos] == '\n') line_nr += 1;
+                *push(&sb, arena) = source[pos];
+                pos += 1;
+            }
+            sb.data[sb.len - 1] = ';';
+            append_newline(arena, &sb, &line_nr);
+        }
+    }
+    append_newline(arena, &sb, &line_nr);
+    fs.function_header_end = line_nr;
+
+
     // APPENDING globals
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange globals = contents.data[i].globals;
@@ -261,25 +296,7 @@ FileSections write_file(
     fs.global_variable_arr = fs.positions.len;
 
     // APPEND functions
-    for (uint32_t i = 0; i < contents.len; i++) {
-        ArrayCharRange funcs = contents.data[i].functions;
-        const char *source = file_starts.data[i];
-
-        for (uint32_t j = 0; j < funcs.len; j++) {
-            uint32_t pos = funcs.data[j].start.beg;
-
-            while (source[pos] != '{') {
-                if (source[pos] == '\n') line_nr += 1;
-                *push(&sb, arena) = source[pos];
-                pos += 1;
-            }
-            sb.data[sb.len - 1] = ';';
-            append_newline(arena, &sb, &line_nr);
-        }
-    }
-    append_newline(arena, &sb, &line_nr);
-    fs.function_header_end = line_nr;
-
+    
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange funcs = contents.data[i].functions;
         const char *source = file_starts.data[i];

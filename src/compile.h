@@ -11,8 +11,7 @@ void mob_compile(
         const char *unit_path, 
         uint32_t unit_path_len, 
         const char **paths, 
-        FileSections *fs,
-        ArrayFileContent content
+        FileSections *fs
 );
 
 #endif /* COMPILE_H_ */
