@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <stdlib.h>
+#include <stdalign.h>
 
 #if !MOB_SELF_BUILD
     #include "parser.h"
@@ -40,7 +40,7 @@ char* read_file(Arena *arena, FILE *file, uint32_t *len) {
     *len = ftell(file);
     rewind(file);
 
-    char *buf = alloc(arena, char, *len, false);
+    char *buf = (char*)arena_alloc(arena, sizeof(char), _alignof(char), *len, false);
     fread(buf, sizeof(char), *len, file);
 
     return buf;
@@ -64,7 +64,7 @@ LineRange consume_define_pragma_and_include(uint32_t *pos, ArrayToken *toks) {
     };
 }
 
-bool is_compiler_if_intrinsic(TokenType type) {
+bool is_compiler_if_intrinsic(enum TokenType type) {
     return type == C_IF || type == C_IFDEF || type == C_IFNDEF;
 }
 
@@ -118,7 +118,7 @@ CharRange consume_typedef(uint32_t *pos, ArrayToken *toks) {
     Token start = toks->data[*pos];
 
     *pos += 1;
-    TokenType type = toks->data[*pos].type;
+    enum TokenType type = toks->data[*pos].type;
 
     if (type == T_STRUCT || type == T_ENUM) {
         return (CharRange){.start = {0}, .end_char = {0}};
@@ -192,7 +192,7 @@ FileContent parse_c_file(Arena *arena, Arena *files, const char *path) {
     FileContent content = {0};
 
     while (toks.data[pos].type != R_EOF) {
-        TokenType type = toks.data[pos].type;
+        enum TokenType type = toks.data[pos].type;
 
         if          (type == C_DEFINE) {
             *push(&content.defines, arena) = consume_define_pragma_and_include(&pos, &toks);

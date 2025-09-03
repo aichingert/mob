@@ -135,7 +135,7 @@ Token consume_compiler_instruction(
     return tok;
 }
 
-Token consume_tt(uint32_t *pos, uint32_t line, TokenType type) {
+Token consume_tt(uint32_t *pos, uint32_t line, enum TokenType type) {
     Token tok = {
         .beg = *pos,
         .line = line,
@@ -151,9 +151,9 @@ Token consume_o(
         uint32_t line, 
         uint32_t len, 
         const char *source, 
-        TokenType type, 
+        enum TokenType type, 
         char nxt, 
-        TokenType other
+        enum TokenType other
 ) {
     Token tok = {
         .beg = *pos,

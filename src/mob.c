@@ -3,7 +3,14 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <sys/mman.h>
+
+#ifdef _WIN32
+	#include <windows.h>
+#elif __unix__
+	#include <sys/mman.h>
+#endif
+
+#define MOB_SELF_BUILD 0
 
 #if !MOB_SELF_BUILD
     #include "arena.h"
@@ -39,15 +46,31 @@ static const char *PATHS[] = {
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
+void allocate_arenas(Arena *app, Arena *files, ptrdiff_t file_buffer_size) {
+#if _WIN32
+	printf("WIN ALLOCATE\n");
+	app->beg = VirtualAlloc(NULL, file_buffer_size, MEM_COMMIT, PAGE_READWRITE);
+    	app->end = app->beg + file_buffer_size; 
+
+	files->beg = VirtualAlloc(NULL, file_buffer_size, MEM_COMMIT, PAGE_READWRITE);
+    	files->end = files->beg + file_buffer_size; 
+#elif __unix__
+	app->beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    	app->end = app->beg + file_buffer_size; 
+
+    	files->beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    	files->end = files->beg + file_buffer_size; 
+#endif
+
+	printf("%p - %p\n", app->beg, app->end);
+}
+
 int main(void) {
     ptrdiff_t file_buffer_size = PATH_COUNT * 1024 * 1024;
 
-    Arena app, files = {0};
-    app.beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-    app.end = app.beg + file_buffer_size; 
-
-    files.beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-    files.end = files.beg + file_buffer_size; 
+    Arena app   = {0};
+    Arena files = {0};
+    allocate_arenas(&app, &files, file_buffer_size);
 
     ArrayFileContent contents = {0}; 
     ArrayCharPtr file_starts = {0};

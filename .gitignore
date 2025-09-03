@@ -6,4 +6,7 @@ mob_unit.c
 app_unit.c
 app_unit
 
+*.obj
+*.exe
+*.vs
 a.out

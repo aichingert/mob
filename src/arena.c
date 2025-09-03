@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdbool.h>
-#include <sys/mman.h>
 
 #if !MOB_SELF_BUILD
     #include "arena.h"

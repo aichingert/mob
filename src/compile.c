@@ -2,6 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+	#include <windows.h>
+#endif
+
 #if !MOB_SELF_BUILD
     #include "arena.h"
     #include "writer.h"
@@ -380,7 +384,15 @@ void mob_compile(
 
     concat_compile_command(compiler, flags, flags_len, unit_path, unit_path_len, cmd);
 
-    FILE *out = popen(cmd, "r");
+    FILE *out = _popen(cmd, "r");
+
+    STARTUPINFOA si = {0};
+    PROCESS_INFORMATION pi = {0};
+    bool res = CreateProcessA("./build.bat", "", 0, 0, false, CREATE_DEFAULT_ERROR_MODE, 0, 0, &si, &pi);
+    if (res == false) {
+	    printf("error %d\n", GetLastError());
+    }
+
     if (out == NULL) {
         printf("ERROR: cannot execute command\n");
         exit(1);
@@ -389,8 +401,11 @@ void mob_compile(
     while (fgets(buf, sizeof(buf), out) != NULL) {
         append_string(arena, &sb, buf);
     }
-    pclose(out);
+    _pclose(out);
 
+    printf("%s\n", sb.data);
+
+    return;
     while (pos < sb.len) {
         uint32_t start = pos;
         uint32_t end = error_skip_in_function(&pos, sb, unit_path_len);

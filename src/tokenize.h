@@ -1,11 +1,14 @@
 #ifndef TOKENIZE_H_
 #define TOKENIZE_H_
 
+
+#pragma once 
+
 #if !MOB_SELF_BUILD
     #include "arena.h"
 #endif
 
-typedef enum TokenType {
+enum TokenType {
     T_ENUM      = 0,
     T_STRUCT    = 1,
     T_TYPEDEF   = 2,
@@ -37,12 +40,12 @@ typedef enum TokenType {
 
     R_EOF       = 80,
     R_IGNORE    = 81,
-} TokenType;
+};
 
 typedef struct Token {
     uint32_t    beg;
     uint32_t    line;
-    TokenType   type;
+    enum TokenType   type;
 } Token;
 
 typedef struct ArrayToken {
