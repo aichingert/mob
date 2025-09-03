@@ -32,6 +32,8 @@ typedef struct FileSections {
     uint32_t define_arr;
     uint32_t pragma_end;
     uint32_t pragma_arr;
+    uint32_t typedef_end;
+    uint32_t typedef_arr;
     uint32_t enum_end;
     uint32_t enum_arr;
     uint32_t struct_declare_end;

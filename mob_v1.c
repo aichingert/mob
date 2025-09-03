@@ -8,17 +8,27 @@
 #include <stdalign.h>
 #include <sys/mman.h>
 
-#define UNIT_PATH       "app_unit.c"
+#define UNIT_PATH       "mob.c"
 #define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0]) - 1
 
 static const char *FLAGS[] = {
     "-Wall",
     "-Wextra",
+    "-DMOB_SELF_BUILD=1",
 };
 static const uint32_t FLAG_COUNT = sizeof(FLAGS) / sizeof(FLAGS[0]);
 static const char *PATHS[] = {
-    "example/app.c",
-    "example/math.c",
+    "src/mob.c",
+    "src/arena.c",
+    "src/arena.h",
+    "src/tokenize.c",
+    "src/tokenize.h",
+    "src/parser.c",
+    "src/parser.h",
+    "src/writer.h",
+    "src/writer.c",
+    "src/compile.c",
+    "src/compile.h",
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
@@ -172,6 +182,8 @@ typedef struct FileSections {
     uint32_t define_arr;
     uint32_t pragma_end;
     uint32_t pragma_arr;
+    uint32_t typedef_end;
+    uint32_t typedef_arr;
     uint32_t enum_end;
     uint32_t enum_arr;
     uint32_t struct_declare_end;
@@ -299,6 +311,7 @@ bool is_duplicated_error(uint32_t line, FileSections *fs);
 bool is_include_error(uint32_t line, FileSections *fs);
 bool is_define_error(uint32_t line, FileSections *fs);
 bool is_pragma_error(uint32_t line, FileSections *fs);
+bool is_typedef_error(uint32_t line, FileSections *fs);
 bool is_enum_error(uint32_t line, FileSections *fs);
 bool is_struct_error(uint32_t line, FileSections *fs);
 bool is_comp_if_error(uint32_t line, FileSections *fs);
@@ -993,7 +1006,7 @@ FileSections write_file(
     FileSections fs = {0};
     StringBuilder sb = {0};
 
-    // APPENDING INCLUDES
+    // APPENDING includes 
     for (uint32_t i = 0; i < contents.len; i++) {
         append_line_ranges(arena, &sb, &line_nr, contents.data[i].includes, file_starts.data[i], i, &fs);
     }
@@ -1001,7 +1014,7 @@ FileSections write_file(
     fs.include_end = line_nr;
     fs.include_arr = fs.positions.len;
 
-    // APPENDING DEFINES
+    // APPENDING defines
     for (uint32_t i = 0; i < contents.len; i++) {
         append_line_ranges(arena, &sb, &line_nr, contents.data[i].defines, file_starts.data[i], i, &fs);
     }
@@ -1009,15 +1022,36 @@ FileSections write_file(
     fs.define_end = line_nr;
     fs.define_arr = fs.positions.len;
 
-    // APPENDING PRAGMAS
+    // APPENDING pragmas 
     for (uint32_t i = 0; i < contents.len; i++) {
         append_line_ranges(arena, &sb, &line_nr, contents.data[i].pragmas, file_starts.data[i], i, &fs);
     }
     append_newline(arena, &sb, &line_nr);
     fs.pragma_end = line_nr;
     fs.pragma_arr = fs.positions.len;
+
+    // APPENDING typedefs
+    for (uint32_t i = 0; i < contents.len; i++) {
+        ArrayCharRange typedefs = contents.data[i].typedefs;
+        const char *source = file_starts.data[i];
+
+        for (uint32_t j = 0; j < typedefs.len; j++) {
+            CopyPosition cp = {
+                .file = i,
+                .file_line = typedefs.data[j].start.line,
+                .start_line = line_nr,
+            };
+
+            line_nr += append_char_range(arena, &sb, typedefs.data[j], source);
+            cp.end_line = line_nr;
+            *push(&fs.positions, arena) = cp;
+        }
+    }
+    append_newline(arena, &sb, &line_nr);
+    fs.typedef_end = line_nr;
+    fs.typedef_arr = fs.positions.len;
  
-    // APPENDING ENUMS
+    // APPENDING enums
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange enums = contents.data[i].enums;
         const char *source = file_starts.data[i];
@@ -1042,7 +1076,7 @@ FileSections write_file(
     fs.enum_end = line_nr;
     fs.enum_arr = fs.positions.len;
 
-    // APPENDING STRUCTS
+    // APPENDING typedefs for structs
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange structs = contents.data[i].structs;
         const char *source = file_starts.data[i];
@@ -1058,6 +1092,7 @@ FileSections write_file(
     append_newline(arena, &sb, &line_nr);
     fs.struct_declare_end = line_nr;
 
+    // APPENDING structs
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange structs = contents.data[i].structs;
         const char *source = file_starts.data[i];
@@ -1206,27 +1241,35 @@ bool is_define_error(uint32_t line, FileSections *fs) {
 }
 
 bool is_pragma_error(uint32_t line, FileSections *fs) {
-    return line >= fs->define_end && line < fs->pragma_end;
+    return line >= fs->define_end && line < fs->pragma_end && fs->pragma_arr - fs->define_arr > 0;
+}
+
+bool is_typedef_error(uint32_t line, FileSections *fs) {
+    return line >= fs->pragma_end && line < fs->typedef_end && fs->typedef_arr - fs->pragma_arr > 0;
 }
 
 bool is_enum_error(uint32_t line, FileSections *fs) {
-    return line >= fs->pragma_end && line < fs->enum_end;
+    return line >= fs->typedef_end && line < fs->enum_end && fs->enum_arr - fs->typedef_arr > 0;
 }
 
 bool is_struct_error(uint32_t line, FileSections *fs) {
-    return line >= fs->struct_declare_end && line < fs->struct_define_end;
+    return line >= fs->struct_declare_end && line < fs->struct_define_end && fs->struct_arr - fs->enum_arr > 0;
 }
 
 bool is_comp_if_error(uint32_t line, FileSections *fs) {
-    return line >= fs->struct_define_end && line < fs->compiler_if_end;
+    return line >= fs->struct_define_end && line < fs->compiler_if_end && fs->compiler_if_arr - fs->struct_arr > 0;
 }
 
 bool is_global_var_error(uint32_t line, FileSections *fs) {
-    return line >= fs->function_header_end && line < fs->global_variable_end;
+    return line >= fs->function_header_end 
+        && line < fs->global_variable_end 
+        && fs->global_variable_arr - fs->compiler_if_arr > 0;
 }
 
 bool is_function_error(uint32_t line, FileSections *fs) {
-    return line >= fs->global_variable_end && line < fs->function_define_end;
+    return line >= fs->global_variable_end 
+        && line < fs->function_define_end
+        && fs->function_arr - fs->global_variable_arr > 0;
 }
 
 void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint32_t path_len) {
@@ -1402,8 +1445,10 @@ CopyPosition error_get_correct_location(uint32_t line, FileSections *fs) {
         return error_search_range(line, fs->include_arr, fs->define_arr, fs);
     } else if   (is_pragma_error(line, fs)) {
         return error_search_range(line, fs->define_arr, fs->pragma_arr, fs);
+    } else if   (is_typedef_error(line, fs)) {
+        return error_search_range(line, fs->pragma_arr, fs->typedef_arr, fs);
     } else if   (is_enum_error(line, fs)) {
-        return error_search_range(line, fs->pragma_arr, fs->enum_arr, fs);
+        return error_search_range(line, fs->typedef_arr, fs->enum_arr, fs);
     } else if   (is_struct_error(line, fs)) {
         return error_search_range(line, fs->enum_arr, fs->struct_arr, fs);
     } else if   (is_comp_if_error(line, fs)) {

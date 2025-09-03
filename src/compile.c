@@ -45,27 +45,35 @@ bool is_define_error(uint32_t line, FileSections *fs) {
 }
 
 bool is_pragma_error(uint32_t line, FileSections *fs) {
-    return line >= fs->define_end && line < fs->pragma_end;
+    return line >= fs->define_end && line < fs->pragma_end && fs->pragma_arr - fs->define_arr > 0;
+}
+
+bool is_typedef_error(uint32_t line, FileSections *fs) {
+    return line >= fs->pragma_end && line < fs->typedef_end && fs->typedef_arr - fs->pragma_arr > 0;
 }
 
 bool is_enum_error(uint32_t line, FileSections *fs) {
-    return line >= fs->pragma_end && line < fs->enum_end;
+    return line >= fs->typedef_end && line < fs->enum_end && fs->enum_arr - fs->typedef_arr > 0;
 }
 
 bool is_struct_error(uint32_t line, FileSections *fs) {
-    return line >= fs->struct_declare_end && line < fs->struct_define_end;
+    return line >= fs->struct_declare_end && line < fs->struct_define_end && fs->struct_arr - fs->enum_arr > 0;
 }
 
 bool is_comp_if_error(uint32_t line, FileSections *fs) {
-    return line >= fs->struct_define_end && line < fs->compiler_if_end;
+    return line >= fs->struct_define_end && line < fs->compiler_if_end && fs->compiler_if_arr - fs->struct_arr > 0;
 }
 
 bool is_global_var_error(uint32_t line, FileSections *fs) {
-    return line >= fs->function_header_end && line < fs->global_variable_end;
+    return line >= fs->function_header_end 
+        && line < fs->global_variable_end 
+        && fs->global_variable_arr - fs->compiler_if_arr > 0;
 }
 
 bool is_function_error(uint32_t line, FileSections *fs) {
-    return line >= fs->global_variable_end && line < fs->function_define_end;
+    return line >= fs->global_variable_end 
+        && line < fs->function_define_end
+        && fs->function_arr - fs->global_variable_arr > 0;
 }
 
 void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint32_t path_len) {
@@ -241,8 +249,10 @@ CopyPosition error_get_correct_location(uint32_t line, FileSections *fs) {
         return error_search_range(line, fs->include_arr, fs->define_arr, fs);
     } else if   (is_pragma_error(line, fs)) {
         return error_search_range(line, fs->define_arr, fs->pragma_arr, fs);
+    } else if   (is_typedef_error(line, fs)) {
+        return error_search_range(line, fs->pragma_arr, fs->typedef_arr, fs);
     } else if   (is_enum_error(line, fs)) {
-        return error_search_range(line, fs->pragma_arr, fs->enum_arr, fs);
+        return error_search_range(line, fs->typedef_arr, fs->enum_arr, fs);
     } else if   (is_struct_error(line, fs)) {
         return error_search_range(line, fs->enum_arr, fs->struct_arr, fs);
     } else if   (is_comp_if_error(line, fs)) {

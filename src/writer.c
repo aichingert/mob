@@ -155,7 +155,7 @@ FileSections write_file(
     FileSections fs = {0};
     StringBuilder sb = {0};
 
-    // APPENDING INCLUDES
+    // APPENDING includes 
     for (uint32_t i = 0; i < contents.len; i++) {
         append_line_ranges(arena, &sb, &line_nr, contents.data[i].includes, file_starts.data[i], i, &fs);
     }
@@ -163,7 +163,7 @@ FileSections write_file(
     fs.include_end = line_nr;
     fs.include_arr = fs.positions.len;
 
-    // APPENDING DEFINES
+    // APPENDING defines
     for (uint32_t i = 0; i < contents.len; i++) {
         append_line_ranges(arena, &sb, &line_nr, contents.data[i].defines, file_starts.data[i], i, &fs);
     }
@@ -171,15 +171,36 @@ FileSections write_file(
     fs.define_end = line_nr;
     fs.define_arr = fs.positions.len;
 
-    // APPENDING PRAGMAS
+    // APPENDING pragmas 
     for (uint32_t i = 0; i < contents.len; i++) {
         append_line_ranges(arena, &sb, &line_nr, contents.data[i].pragmas, file_starts.data[i], i, &fs);
     }
     append_newline(arena, &sb, &line_nr);
     fs.pragma_end = line_nr;
     fs.pragma_arr = fs.positions.len;
+
+    // APPENDING typedefs
+    for (uint32_t i = 0; i < contents.len; i++) {
+        ArrayCharRange typedefs = contents.data[i].typedefs;
+        const char *source = file_starts.data[i];
+
+        for (uint32_t j = 0; j < typedefs.len; j++) {
+            CopyPosition cp = {
+                .file = i,
+                .file_line = typedefs.data[j].start.line,
+                .start_line = line_nr,
+            };
+
+            line_nr += append_char_range(arena, &sb, typedefs.data[j], source);
+            cp.end_line = line_nr;
+            *push(&fs.positions, arena) = cp;
+        }
+    }
+    append_newline(arena, &sb, &line_nr);
+    fs.typedef_end = line_nr;
+    fs.typedef_arr = fs.positions.len;
  
-    // APPENDING ENUMS
+    // APPENDING enums
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange enums = contents.data[i].enums;
         const char *source = file_starts.data[i];
@@ -204,7 +225,7 @@ FileSections write_file(
     fs.enum_end = line_nr;
     fs.enum_arr = fs.positions.len;
 
-    // APPENDING STRUCTS
+    // APPENDING typedefs for structs
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange structs = contents.data[i].structs;
         const char *source = file_starts.data[i];
@@ -220,6 +241,7 @@ FileSections write_file(
     append_newline(arena, &sb, &line_nr);
     fs.struct_declare_end = line_nr;
 
+    // APPENDING structs
     for (uint32_t i = 0; i < contents.len; i++) {
         ArrayCharRange structs = contents.data[i].structs;
         const char *source = file_starts.data[i];
