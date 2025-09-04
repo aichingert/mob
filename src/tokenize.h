@@ -1,9 +1,6 @@
 #ifndef TOKENIZE_H_
 #define TOKENIZE_H_
 
-
-#pragma once 
-
 #if !MOB_SELF_BUILD
     #include "arena.h"
 #endif

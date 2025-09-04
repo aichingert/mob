@@ -10,8 +10,6 @@
 	#include <sys/mman.h>
 #endif
 
-#define MOB_SELF_BUILD 0
-
 #if !MOB_SELF_BUILD
     #include "arena.h"
     #include "parser.h"
@@ -48,21 +46,18 @@ static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
 void allocate_arenas(Arena *app, Arena *files, ptrdiff_t file_buffer_size) {
 #if _WIN32
-	printf("WIN ALLOCATE\n");
 	app->beg = VirtualAlloc(NULL, file_buffer_size, MEM_COMMIT, PAGE_READWRITE);
-    	app->end = app->beg + file_buffer_size; 
+    app->end = app->beg + file_buffer_size; 
 
 	files->beg = VirtualAlloc(NULL, file_buffer_size, MEM_COMMIT, PAGE_READWRITE);
-    	files->end = files->beg + file_buffer_size; 
+    files->end = files->beg + file_buffer_size; 
 #elif __unix__
 	app->beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-    	app->end = app->beg + file_buffer_size; 
+    app->end = app->beg + file_buffer_size; 
 
-    	files->beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-    	files->end = files->beg + file_buffer_size; 
+    files->beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    files->end = files->beg + file_buffer_size; 
 #endif
-
-	printf("%p - %p\n", app->beg, app->end);
 }
 
 int main(void) {

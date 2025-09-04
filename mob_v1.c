@@ -8,27 +8,17 @@
 #include <stdalign.h>
 #include <sys/mman.h>
 
-#define UNIT_PATH       "mob.c"
+#define UNIT_PATH       "app.c"
 #define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0]) - 1
 
 static const char *FLAGS[] = {
     "-Wall",
     "-Wextra",
-    "-DMOB_SELF_BUILD=1",
 };
 static const uint32_t FLAG_COUNT = sizeof(FLAGS) / sizeof(FLAGS[0]);
 static const char *PATHS[] = {
-    "src/mob.c",
-    "src/arena.c",
-    "src/arena.h",
-    "src/tokenize.c",
-    "src/tokenize.h",
-    "src/parser.c",
-    "src/parser.h",
-    "src/writer.h",
-    "src/writer.c",
-    "src/compile.c",
-    "src/compile.h",
+    "example/app.c",
+    "example/math.c",
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
@@ -56,7 +46,7 @@ typedef struct Arena {
 void *arena_alloc(Arena *a, ptrdiff_t size, ptrdiff_t align, ptrdiff_t count, bool zero);
 void grow(void *slice, ptrdiff_t size, Arena *a);
 
-typedef enum TokenType {
+enum TokenType {
     T_ENUM      = 0,
     T_STRUCT    = 1,
     T_TYPEDEF   = 2,
@@ -88,12 +78,12 @@ typedef enum TokenType {
 
     R_EOF       = 80,
     R_IGNORE    = 81,
-} TokenType;
+};
 
 typedef struct Token {
     uint32_t    beg;
     uint32_t    line;
-    TokenType   type;
+    enum TokenType   type;
 } Token;
 
 typedef struct ArrayToken {
@@ -214,6 +204,7 @@ void mob_compile(
         FileSections *fs
 );
 
+void allocate_arenas(Arena *app, Arena *files, ptrdiff_t file_buffer_size);
 int main(void);
 void *arena_alloc(Arena *a, ptrdiff_t size, ptrdiff_t align, ptrdiff_t count, bool zero);
 void grow(void *slice, ptrdiff_t size, Arena *a);
@@ -233,15 +224,15 @@ Token consume_compiler_instruction(
         const char *source, 
         const char *path
 );
-Token consume_tt(uint32_t *pos, uint32_t line, TokenType type);
+Token consume_tt(uint32_t *pos, uint32_t line, enum TokenType type);
 Token consume_o(
         uint32_t *pos, 
         uint32_t line, 
         uint32_t len, 
         const char *source, 
-        TokenType type, 
+        enum TokenType type, 
         char nxt, 
-        TokenType other
+        enum TokenType other
 );
 ArrayToken tokenize(
         Arena *arena, 
@@ -252,7 +243,7 @@ ArrayToken tokenize(
 bool is_func(uint32_t pos, ArrayToken *toks);
 char* read_file(Arena *arena, FILE *file, uint32_t *len);
 LineRange consume_define_pragma_and_include(uint32_t *pos, ArrayToken *toks);
-bool is_compiler_if_intrinsic(TokenType type);
+bool is_compiler_if_intrinsic(enum TokenType type);
 LineRange consume_if(uint32_t *pos, ArrayToken *toks);
 CharRange consume_struct_or_enum(uint32_t *pos, ArrayToken *toks);
 CharRange consume_typedef(uint32_t *pos, ArrayToken *toks);
@@ -318,7 +309,7 @@ bool is_comp_if_error(uint32_t line, FileSections *fs);
 bool is_global_var_error(uint32_t line, FileSections *fs);
 bool is_function_error(uint32_t line, FileSections *fs);
 void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint32_t path_len);
-uint32_t error_skip_in_function(uint32_t *pos, StringBuilder sb, uint32_t path_len);
+uint32_t error_skip_if_not_location(uint32_t *pos, StringBuilder sb, uint32_t path_len);
 LineRange error_extract_position(uint32_t *pos, StringBuilder sb, uint32_t path_len);
 void error_append_remaining_till_next(
         Arena *arena,
@@ -362,15 +353,28 @@ void mob_compile(
         FileSections *fs
 );
 
+void allocate_arenas(Arena *app, Arena *files, ptrdiff_t file_buffer_size) {
+#if _WIN32
+	app->beg = VirtualAlloc(NULL, file_buffer_size, MEM_COMMIT, PAGE_READWRITE);
+    app->end = app->beg + file_buffer_size; 
+
+	files->beg = VirtualAlloc(NULL, file_buffer_size, MEM_COMMIT, PAGE_READWRITE);
+    files->end = files->beg + file_buffer_size; 
+#elif __unix__
+	app->beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    app->end = app->beg + file_buffer_size; 
+
+    files->beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    files->end = files->beg + file_buffer_size; 
+#endif
+}
+
 int main(void) {
     ptrdiff_t file_buffer_size = PATH_COUNT * 1024 * 1024;
 
-    Arena app, files = {0};
-    app.beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-    app.end = app.beg + file_buffer_size; 
-
-    files.beg = mmap(NULL, file_buffer_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-    files.end = files.beg + file_buffer_size; 
+    Arena app   = {0};
+    Arena files = {0};
+    allocate_arenas(&app, &files, file_buffer_size);
 
     ArrayFileContent contents = {0}; 
     ArrayCharPtr file_starts = {0};
@@ -554,7 +558,7 @@ Token consume_compiler_instruction(
     return tok;
 }
 
-Token consume_tt(uint32_t *pos, uint32_t line, TokenType type) {
+Token consume_tt(uint32_t *pos, uint32_t line, enum TokenType type) {
     Token tok = {
         .beg = *pos,
         .line = line,
@@ -570,9 +574,9 @@ Token consume_o(
         uint32_t line, 
         uint32_t len, 
         const char *source, 
-        TokenType type, 
+        enum TokenType type, 
         char nxt, 
-        TokenType other
+        enum TokenType other
 ) {
     Token tok = {
         .beg = *pos,
@@ -669,7 +673,7 @@ char* read_file(Arena *arena, FILE *file, uint32_t *len) {
     *len = ftell(file);
     rewind(file);
 
-    char *buf = alloc(arena, char, *len, false);
+    char *buf = (char*)alloc(arena, uint8_t, *len, false);
     fread(buf, sizeof(char), *len, file);
 
     return buf;
@@ -693,7 +697,7 @@ LineRange consume_define_pragma_and_include(uint32_t *pos, ArrayToken *toks) {
     };
 }
 
-bool is_compiler_if_intrinsic(TokenType type) {
+bool is_compiler_if_intrinsic(enum TokenType type) {
     return type == C_IF || type == C_IFDEF || type == C_IFNDEF;
 }
 
@@ -747,7 +751,7 @@ CharRange consume_typedef(uint32_t *pos, ArrayToken *toks) {
     Token start = toks->data[*pos];
 
     *pos += 1;
-    TokenType type = toks->data[*pos].type;
+    enum TokenType type = toks->data[*pos].type;
 
     if (type == T_STRUCT || type == T_ENUM) {
         return (CharRange){.start = {0}, .end_char = {0}};
@@ -821,7 +825,7 @@ FileContent parse_c_file(Arena *arena, Arena *files, const char *path) {
     FileContent content = {0};
 
     while (toks.data[pos].type != R_EOF) {
-        TokenType type = toks.data[pos].type;
+        enum TokenType type = toks.data[pos].type;
 
         if          (type == C_DEFINE) {
             *push(&content.defines, arena) = consume_define_pragma_and_include(&pos, &toks);
@@ -1294,18 +1298,10 @@ void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint3
     *pos = sb.len;
 }
 
-uint32_t error_skip_in_function(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
+uint32_t error_skip_if_not_location(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
     *pos += path_len + 1;
-    uint32_t advance = 0;
-    const char *in_function = " In function";
-    uint32_t len = strlen(in_function);
 
-    while (*pos + advance < sb.len && sb.data[*pos + advance] == in_function[advance]) {
-        advance += 1;
-    }
-
-    if (advance == len) {
-        *pos += advance;
+    if (*pos < sb.len && !(sb.data[*pos] >= '0' && sb.data[*pos] <= '9')) {
         while (*pos < sb.len && sb.data[*pos] != '\n') {
             *pos += 1;
         }
@@ -1573,8 +1569,16 @@ void mob_compile(
     StringBuilder sb = {0};
     StringBuilder error_msg =  {0};
     const char *compiler = "/usr/bin/cc";
-
     concat_compile_command(compiler, flags, flags_len, unit_path, unit_path_len, cmd);
+
+    #ifdef _WIN32
+        STARTUPINFOA si = {0};
+        PROCESS_INFORMATION pi = {0};
+        bool res = CreateProcessA("./build.bat", "", 0, 0, false, CREATE_DEFAULT_ERROR_MODE, 0, 0, &si, &pi);
+        if (res == false) {
+            printf("error %d\n", GetLastError());
+        }
+    #endif
 
     FILE *out = popen(cmd, "r");
     if (out == NULL) {
@@ -1589,7 +1593,7 @@ void mob_compile(
 
     while (pos < sb.len) {
         uint32_t start = pos;
-        uint32_t end = error_skip_in_function(&pos, sb, unit_path_len);
+        uint32_t end = error_skip_if_not_location(&pos, sb, unit_path_len);
         LineRange lr = error_extract_position(&pos, sb, unit_path_len);
 
         uint32_t line_nbr = lr.end_line;

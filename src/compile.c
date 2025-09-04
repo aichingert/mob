@@ -102,18 +102,10 @@ void error_skip_to_next(uint32_t *pos, StringBuilder sb, const char *path, uint3
     *pos = sb.len;
 }
 
-uint32_t error_skip_in_function(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
+uint32_t error_skip_if_not_location(uint32_t *pos, StringBuilder sb, uint32_t path_len) {
     *pos += path_len + 1;
-    uint32_t advance = 0;
-    const char *in_function = " In function";
-    uint32_t len = strlen(in_function);
 
-    while (*pos + advance < sb.len && sb.data[*pos + advance] == in_function[advance]) {
-        advance += 1;
-    }
-
-    if (advance == len) {
-        *pos += advance;
+    if (*pos < sb.len && !(sb.data[*pos] >= '0' && sb.data[*pos] <= '9')) {
         while (*pos < sb.len && sb.data[*pos] != '\n') {
             *pos += 1;
         }
@@ -381,18 +373,18 @@ void mob_compile(
     StringBuilder sb = {0};
     StringBuilder error_msg =  {0};
     const char *compiler = "/usr/bin/cc";
-
     concat_compile_command(compiler, flags, flags_len, unit_path, unit_path_len, cmd);
 
-    FILE *out = _popen(cmd, "r");
+    #ifdef _WIN32
+        STARTUPINFOA si = {0};
+        PROCESS_INFORMATION pi = {0};
+        bool res = CreateProcessA("./build.bat", "", 0, 0, false, CREATE_DEFAULT_ERROR_MODE, 0, 0, &si, &pi);
+        if (res == false) {
+            printf("error %d\n", GetLastError());
+        }
+    #endif
 
-    STARTUPINFOA si = {0};
-    PROCESS_INFORMATION pi = {0};
-    bool res = CreateProcessA("./build.bat", "", 0, 0, false, CREATE_DEFAULT_ERROR_MODE, 0, 0, &si, &pi);
-    if (res == false) {
-	    printf("error %d\n", GetLastError());
-    }
-
+    FILE *out = popen(cmd, "r");
     if (out == NULL) {
         printf("ERROR: cannot execute command\n");
         exit(1);
@@ -401,14 +393,11 @@ void mob_compile(
     while (fgets(buf, sizeof(buf), out) != NULL) {
         append_string(arena, &sb, buf);
     }
-    _pclose(out);
+    pclose(out);
 
-    printf("%s\n", sb.data);
-
-    return;
     while (pos < sb.len) {
         uint32_t start = pos;
-        uint32_t end = error_skip_in_function(&pos, sb, unit_path_len);
+        uint32_t end = error_skip_if_not_location(&pos, sb, unit_path_len);
         LineRange lr = error_extract_position(&pos, sb, unit_path_len);
 
         uint32_t line_nbr = lr.end_line;

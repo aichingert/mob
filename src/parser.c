@@ -40,7 +40,7 @@ char* read_file(Arena *arena, FILE *file, uint32_t *len) {
     *len = ftell(file);
     rewind(file);
 
-    char *buf = (char*)arena_alloc(arena, sizeof(char), _alignof(char), *len, false);
+    char *buf = (char*)alloc(arena, uint8_t, *len, false);
     fread(buf, sizeof(char), *len, file);
 
     return buf;
