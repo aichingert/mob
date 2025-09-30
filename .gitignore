@@ -1,7 +1,6 @@
 goc
 goc_unit.c
 mob
-mob.c
 mob_unit.c
 app
 app.c

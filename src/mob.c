@@ -17,7 +17,7 @@
     #include "compile.h"
 #endif
 
-#define UNIT_PATH       "mob.c"
+#define UNIT_PATH       "app.c"
 #define UNIT_PATH_LEN   sizeof(UNIT_PATH) / sizeof(UNIT_PATH[0]) - 1
 
 static const char *FLAGS[] = {

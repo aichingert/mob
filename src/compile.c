@@ -12,6 +12,10 @@
     #include "compile.h"
 #endif
 
+bool is_numeric(char c) {
+    return (c >= '0') && (c <= '9');
+}
+
 uint32_t reverse_number(uint32_t number) {
     uint32_t reverse = 0;
 
@@ -123,13 +127,13 @@ LineRange error_extract_position(uint32_t *pos, StringBuilder sb, uint32_t path_
     uint32_t line_nr = 0;
     uint32_t position = 0;
 
-    while (*pos < sb.len && sb.data[*pos] != ':') {
+    while (*pos < sb.len && sb.data[*pos] != ':' && is_numeric(sb.data[*pos])) {
         line_nr = (line_nr * 10) + sb.data[*pos] - '0';
         *pos += 1;
     }
     *pos += 1;
 
-    while (*pos < sb.len && sb.data[*pos] != ':') {
+    while (*pos < sb.len && sb.data[*pos] != ':' && is_numeric(sb.data[*pos])) {
         position = (position * 10) + sb.data[*pos] - '0';
         *pos += 1;
     }
@@ -374,6 +378,7 @@ void mob_compile(
     StringBuilder error_msg =  {0};
     const char *compiler = "/usr/bin/cc";
     concat_compile_command(compiler, flags, flags_len, unit_path, unit_path_len, cmd);
+    printf("%s\n", cmd);
 
     #ifdef _WIN32
         STARTUPINFOA si = {0};

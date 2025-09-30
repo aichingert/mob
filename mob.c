@@ -14,11 +14,21 @@
 static const char *FLAGS[] = {
     "-Wall",
     "-Wextra",
+    "-DMOB_SELF_BUILD=1",
 };
 static const uint32_t FLAG_COUNT = sizeof(FLAGS) / sizeof(FLAGS[0]);
 static const char *PATHS[] = {
-    "example/app.c",
-    "example/math.c",
+    "src/mob.c",
+    "src/arena.c",
+    "src/arena.h",
+    "src/tokenize.c",
+    "src/tokenize.h",
+    "src/parser.c",
+    "src/parser.h",
+    "src/writer.h",
+    "src/writer.c",
+    "src/compile.c",
+    "src/compile.h",
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 
@@ -47,37 +57,38 @@ void *arena_alloc(Arena *a, ptrdiff_t size, ptrdiff_t align, ptrdiff_t count, bo
 void grow(void *slice, ptrdiff_t size, Arena *a);
 
 enum TokenType {
-    T_ENUM      = 0,
-    T_STRUCT    = 1,
-    T_TYPEDEF   = 2,
-    T_IDENT     = 3,
+    T_ENUM          = 0,
+    T_STRUCT        = 1,
+    T_TYPEDEF       = 2,
+    T_IDENT         = 3,
 
-    C_IF        = 20,
-    C_IFDEF     = 21,
-    C_IFNDEF    = 22,
-    C_ELSE      = 23,
-    C_ELIF      = 24,
-    C_ENDIF     = 25,
-    C_UNDEF     = 26,
-    C_ERROR     = 27,
-    C_PRAGMA    = 28,
-    C_DEFINE    = 29,
-    C_INCLUDE   = 30,
+    C_IF            = 20,
+    C_IFDEF         = 21,
+    C_IFNDEF        = 22,
+    C_ELSE          = 23,
+    C_ELIF          = 24,
+    C_ENDIF         = 25,
+    C_UNDEF         = 26,
+    C_ERROR         = 27,
+    C_PRAGMA        = 28,
+    C_DEFINE        = 29,
+    C_INCLUDE       = 30,
+    C_MACRO_CONCAT  = 31,
 
-    O_EQ        = 40,
+    O_EQ            = 40,
 
-    TT_L_BRACE  = 60,
-    TT_R_BRACE  = 61,
-    TT_L_PAREN  = 62,
-    TT_R_PAREN  = 63,
-    TT_L_BRACKET= 64,
-    TT_R_BRACKET= 65,
-    TT_COMMA    = 66,
-    TT_SEMICOLON= 67,
-    TT_BACKSLASH= 68,
+    TT_L_BRACE      = 60,
+    TT_R_BRACE      = 61,
+    TT_L_PAREN      = 62,
+    TT_R_PAREN      = 63,
+    TT_L_BRACKET    = 64,
+    TT_R_BRACKET    = 65,
+    TT_COMMA        = 66,
+    TT_SEMICOLON    = 67,
+    TT_BACKSLASH    = 68,
 
-    R_EOF       = 80,
-    R_IGNORE    = 81,
+    R_EOF           = 80,
+    R_IGNORE        = 81,
 };
 
 typedef struct Token {
@@ -296,6 +307,7 @@ FileSections write_file(
         ArrayCharPtr file_starts, 
         ArrayFileContent contents
 );
+bool is_numeric(char c);
 uint32_t reverse_number(uint32_t number);
 uint32_t string_len_of_number(uint32_t number);
 bool is_duplicated_error(uint32_t line, FileSections *fs);
@@ -352,7 +364,6 @@ void mob_compile(
         const char **paths,
         FileSections *fs
 );
-
 void allocate_arenas(Arena *app, Arena *files, ptrdiff_t file_buffer_size) {
 #if _WIN32
 	app->beg = VirtualAlloc(NULL, file_buffer_size, MEM_COMMIT, PAGE_READWRITE);
@@ -435,7 +446,9 @@ bool is_ident_start(char character) {
 }
 
 bool is_ident(char character) {
-    return is_ident_start(character) || (character >= '0' && character <= '9');
+    return is_ident_start(character) 
+        || (character >= '0' && character <= '9')
+        || (character == '_');
 }
 
 bool is_line_comment(uint32_t pos, uint32_t len, const char *source) {
@@ -522,7 +535,7 @@ Token consume_compiler_instruction(
     };
     *pos += 1;
 
-    while (*pos < len && is_ident(source[*pos])) {
+    while (*pos < len && (is_ident(source[*pos]) || source[*pos] == '#')) {
         *pos += 1;
     }
 
@@ -550,6 +563,8 @@ Token consume_compiler_instruction(
         tok.type = C_ENDIF;
     } else if   (diff == 6 && strncmp(source + tok.beg, "#error", diff) == 0) {
         tok.type = C_ERROR;
+    } else if   (diff == 2 && strncmp(source + tok.beg, "##", diff) == 0) {
+        tok.type = C_MACRO_CONCAT;
     } else {
         printf("ERROR: either unknown compiler intrinsic or invalid c file -> `%s`, line=%d\n", path, line);
         assert(false);
@@ -1208,6 +1223,10 @@ FileSections write_file(
     return fs;
 }
 
+bool is_numeric(char c) {
+    return (c >= '0') && (c <= '9');
+}
+
 uint32_t reverse_number(uint32_t number) {
     uint32_t reverse = 0;
 
@@ -1319,13 +1338,13 @@ LineRange error_extract_position(uint32_t *pos, StringBuilder sb, uint32_t path_
     uint32_t line_nr = 0;
     uint32_t position = 0;
 
-    while (*pos < sb.len && sb.data[*pos] != ':') {
+    while (*pos < sb.len && sb.data[*pos] != ':' && is_numeric(sb.data[*pos])) {
         line_nr = (line_nr * 10) + sb.data[*pos] - '0';
         *pos += 1;
     }
     *pos += 1;
 
-    while (*pos < sb.len && sb.data[*pos] != ':') {
+    while (*pos < sb.len && sb.data[*pos] != ':' && is_numeric(sb.data[*pos])) {
         position = (position * 10) + sb.data[*pos] - '0';
         *pos += 1;
     }
@@ -1570,6 +1589,7 @@ void mob_compile(
     StringBuilder error_msg =  {0};
     const char *compiler = "/usr/bin/cc";
     concat_compile_command(compiler, flags, flags_len, unit_path, unit_path_len, cmd);
+    printf("%s\n", cmd);
 
     #ifdef _WIN32
         STARTUPINFOA si = {0};

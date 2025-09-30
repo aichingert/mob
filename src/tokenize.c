@@ -12,7 +12,9 @@ bool is_ident_start(char character) {
 }
 
 bool is_ident(char character) {
-    return is_ident_start(character) || (character >= '0' && character <= '9');
+    return is_ident_start(character) 
+        || (character >= '0' && character <= '9')
+        || (character == '_');
 }
 
 bool is_line_comment(uint32_t pos, uint32_t len, const char *source) {
@@ -99,7 +101,7 @@ Token consume_compiler_instruction(
     };
     *pos += 1;
 
-    while (*pos < len && is_ident(source[*pos])) {
+    while (*pos < len && (is_ident(source[*pos]) || source[*pos] == '#')) {
         *pos += 1;
     }
 
@@ -127,6 +129,8 @@ Token consume_compiler_instruction(
         tok.type = C_ENDIF;
     } else if   (diff == 6 && strncmp(source + tok.beg, "#error", diff) == 0) {
         tok.type = C_ERROR;
+    } else if   (diff == 2 && strncmp(source + tok.beg, "##", diff) == 0) {
+        tok.type = C_MACRO_CONCAT;
     } else {
         printf("ERROR: either unknown compiler intrinsic or invalid c file -> `%s`, line=%d\n", path, line);
         assert(false);
