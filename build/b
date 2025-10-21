@@ -1,3 +1,15 @@
 #!/bin/sh
 
-clang -Wall -Wextra -DMOB_SELF_BUILD=0 src/*c -o mob && ./mob
+clang \
+    -Wextra \
+    -Wall   \
+    -Wfloat-equal \
+    -Wundef \
+    -Wshadow \
+    -Wpointer-arith \
+    -Wcast-align \
+    -Wstrict-prototypes \
+    -Wstrict-overflow=5 \
+    -Wwrite-strings \
+    -Waggregate-return \
+    mob.c -o mob
