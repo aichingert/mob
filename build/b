@@ -12,4 +12,6 @@ clang \
     -Wstrict-overflow=5 \
     -Wwrite-strings \
     -Waggregate-return \
-    mob.c -o mob
+    build/b.c -o build/mb
+
+./build/mb

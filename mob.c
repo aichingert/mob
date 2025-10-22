@@ -1,27 +1,8 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdbool.h>
-
-#if __unix__ 
+// TODO: replace with os_alloc
+//                and os_free
 #include <sys/mman.h>
-#endif
 
-static const char *path = "app.c";
-
-typedef uint8_t     u8;
-typedef uint16_t    u16;
-typedef uint32_t    u32;
-typedef uint64_t    u64;
-typedef int8_t      s8;
-typedef int16_t     s16;
-typedef int32_t     s32;
-typedef int64_t     s64;
-typedef float       f32;
-typedef double      f64;
-
-typedef struct Arena {
+typedef struct Arena { 
     u64 cnt;
     u64 cap;
     u8 *mem;
@@ -30,9 +11,8 @@ typedef struct Arena {
 void allocate(Arena *arena, u64 bytes) {
     arena->cnt = 0;
     arena->cap = bytes;
-#if __unix__
+    arena->mem = os_alloc(
     arena->mem = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-#endif
 }
 
 void *alloc(Arena *arena, u64 bytes, u64 align, u64 count, bool zero) {
@@ -47,9 +27,7 @@ void *alloc(Arena *arena, u64 bytes, u64 align, u64 count, bool zero) {
         allocate(&cpy, arena->cap << 1);
         memcpy(cpy.mem, arena->mem, arena->cnt);
 
-#if __unix__
         s32 res = munmap(arena->mem, arena->cap);
-#endif
         arena->mem = cpy.mem;
     }
 
