@@ -1,9 +1,11 @@
+#define SYS_CALL_MMAP       9
+#define SYS_CALL_MUNMAP     11
 #define SYS_CALL_SOCKET     41
 #define SYS_CALL_CONNECT    42
 #define SYS_CALL_SENDTO     44
 #define SYS_CALL_EXIT       60
 
-void assert(bool condition, char *msg) {
+void assert(bool condition, const char *msg) {
     #ifndef DEBUG
 
     if (!condition) {
@@ -14,24 +16,68 @@ void assert(bool condition, char *msg) {
     #endif
 }
 
-s32 sys_socket(s32 domain, s32 type, s32 protocol) {
-    u64 result = 0;
+void *sys_mmap(void *addr, u64 length, s32 prot, s32 flags, s32 fd, s64 offset) {
+    void *result = NULL;
 
     __asm__ volatile (
             "   movq %[sys_call_n], %%rax\n"
+            "   movq %[asm_addr],   %%rdi\n"
+            "   movq %[asm_length], %%rsi\n"
+            "   movq %[asm_prot],   %%rdx\n"
+            "   movq %[asm_flags],  %%r10\n"
+            "   movq %[asm_fd],     %%r8\n"
+            "   movq %[asm_offset], %%r9\n"
+            "   syscall\n"
+            : "=r" (result)
+            :   [sys_call_n] "r"    ((u64)SYS_CALL_MMAP), 
+                [asm_addr] "r"      (addr),
+                [asm_length]   "r"  (length),
+                [asm_prot]   "r"    ((u64)prot),
+                [asm_flags]   "r"   ((u64)flags),
+                [asm_fd]   "r"      ((u64)fd),
+                [asm_offset]   "r"  ((u64)offset)
+            : "%rdi", "%rsi", "%rdx", "%r10", "%r8", "%r9", "memory"
+    );
+
+    return result;
+}
+
+s32 sys_munmap(void *addr, u64 length) {
+    s32 result = 0;
+
+    __asm__ volatile (
+            "   movq %[asm_addr],   %%rdi\n"
+            "   movq %[asm_length], %%rsi\n"
+            "   movl %[sys_call_n], %%eax\n"
+            "   syscall\n"
+            : "=r" (result)
+            :   [sys_call_n] "r" (SYS_CALL_MUNMAP), 
+                [asm_addr]   "r" (addr),
+                [asm_length] "r" (length)
+            : "%rdi", "%rsi"
+    );
+
+    return result;
+}
+
+s32 sys_socket(s32 domain, s32 type, s32 protocol) {
+    s32 result = 0;
+
+    __asm__ volatile (
+            "   movl %[sys_call_n], %%eax\n"
             "   movq %[asm_domain], %%rdi\n"
             "   movq %[asm_type],   %%rsi\n"
             "   movq %[asm_prot],   %%rdx\n"
             "   syscall\n"
             : "=r" (result)
-            :   [sys_call_n] "r" ((u64)SYS_CALL_SOCKET), 
+            :   [sys_call_n] "r" (SYS_CALL_SOCKET), 
                 [asm_domain] "r" ((u64)domain),
                 [asm_type]   "r" ((u64)type),
                 [asm_prot]   "r" ((u64)protocol)
             : "%rdi", "%rsi", "%rdx"
     );
 
-    return (s32)result;
+    return result;
 }
 
 s32 sys_connect(
@@ -39,26 +85,26 @@ s32 sys_connect(
         const SocketAddress *socket_addr, 
         u32 socket_len
 ) {
-    u64 result = 0;
+    s32 result = 0;
 
     __asm__ volatile (
-            "   movq %[sys_call_n],     %%rax\n"
+            "   movl %[sys_call_n],     %%eax\n"
             "   movq %[asm_socket_fd],  %%rdi\n"
             "   movq %[asm_socket_addr],%%rsi\n"
             "   movq %[asm_socket_len], %%rdx\n"
             "   syscall\n"
             : "=r" (result)
-            :   [sys_call_n]        "r" ((u64)SYS_CALL_CONNECT),
+            :   [sys_call_n]        "r" (SYS_CALL_CONNECT),
                 [asm_socket_fd]     "r" ((u64)socket_fd),
                 [asm_socket_addr]   "r" ((u64)socket_addr),
                 [asm_socket_len]    "r" ((u64)socket_len)
             : "%rdi", "%rsi", "%rdx"
     );
     
-    return (s32)result;
+    return result;
 }
 
-u64 sys_sendto(
+s64 sys_sendto(
         s32 socket_fd, 
         u8 *buf,
         u64 len,
@@ -66,10 +112,10 @@ u64 sys_sendto(
         const SocketAddress *dest_addr,
         u32 addr_len
 ) {
-    u64 result = 0;
+    s64 result = 0;
 
     __asm__ volatile (
-            "   movq %[sys_call_n],     %%rax\n"
+            "   movl %[sys_call_n],     %%eax\n"
             "   movq %[asm_socket_fd],  %%rdi\n"
             "   movq %[asm_buffer],     %%rsi\n"
             "   movq %[asm_buffer_len], %%rdx\n"
@@ -78,7 +124,7 @@ u64 sys_sendto(
             "   movq %[asm_addr_len],   %%r9\n"
             "   syscall\n"
             : "=r" (result)
-            :   [sys_call_n]        "r" ((u64)SYS_CALL_SENDTO),
+            :   [sys_call_n]        "r" (SYS_CALL_SENDTO),
                 [asm_socket_fd]     "r" ((u64)socket_fd),
                 [asm_buffer]        "r" ((u64)buf),
                 [asm_buffer_len]    "r" (len),
@@ -93,11 +139,11 @@ u64 sys_sendto(
 
 void sys_exit(u16 exit_code) {
     __asm__ volatile (
-            "   movq %[sys_call_n],     %%rax\n"
+            "   movl %[sys_call_n],     %%eax\n"
             "   movq %[asm_exit_code],  %%rdi\n"
             "   syscall\n"
             : /* NO OUTPUT */
-            :   [sys_call_n]    "r" ((u64)SYS_CALL_EXIT),
+            :   [sys_call_n]    "r" (SYS_CALL_EXIT),
                 [asm_exit_code] "r" ((u64)exit_code)
             : "%rdi"
     );

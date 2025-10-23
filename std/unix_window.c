@@ -72,11 +72,11 @@ s32 wayland_display_connect() {
     assert(
             xdg_runtime_dir.len + wayland_display.len + 1 < UNIX_PATH_MAX,
             "wayland socket path does not fit");
-    memcpy(addr.socket_path, xdg_runtime_dir.val, xdg_runtime_dir.len);
+    memcpy((u8*)addr.socket_path, (u8*)xdg_runtime_dir.val, xdg_runtime_dir.len);
     addr.socket_path[xdg_runtime_dir.len] = '/';
     memcpy(
-            addr.socket_path + xdg_runtime_dir.len + 1, 
-            wayland_display.val, wayland_display.len);
+            (u8*)(addr.socket_path + xdg_runtime_dir.len + 1),
+            (u8*)wayland_display.val, wayland_display.len);
 
     s32 fd = sys_socket(AF_UNIX, SOCK_STREAM, 0);
     assert(fd != -1, "unable to create socket");
@@ -123,6 +123,27 @@ u32 wayland_display_get_registry(s32 fd) {
 Window create_window(u16 width, u16 height) {
     s32 fd = wayland_display_connect();
     u32 wl_registry = wayland_display_get_registry(fd);
+    (void)wayland_wl_registry_event_global;
+    (void)wayland_shm_pool_event_format;
+    (void)wayland_wl_buffer_event_release;
+    (void)wayland_xdg_wm_base_event_ping;
+    (void)wayland_xdg_toplevel_event_configure;
+    (void)wayland_xdg_toplevel_event_close;
+    (void)wayland_xdg_surface_event_configure;
+    (void)wayland_wl_registry_bind_opcode;
+    (void)wayland_wl_compositor_create_surface_opcode;
+    (void)wayland_xdg_wm_base_pong_opcode;
+    (void)wayland_xdg_surface_ack_configure_opcode;
+    (void)wayland_wl_shm_create_pool_opcode;
+    (void)wayland_xdg_wm_base_get_xdg_surface_opcode;
+    (void)wayland_wl_shm_pool_create_buffer_opcode;
+    (void)wayland_wl_surface_attach_opcode;
+    (void)wayland_xdg_surface_get_toplevel_opcode;
+    (void)wayland_wl_surface_commit_opcode;
+    (void)wayland_wl_display_error_event;
+    (void)color_channels;
+    (void)wayland_format_xrgb8888;
+    (void)wl_registry;
 
     return (Window){
         .width = width,

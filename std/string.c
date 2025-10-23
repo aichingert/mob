@@ -4,7 +4,7 @@ struct String {
 };
 
 #define S(value) ((String){                             \
-        .val = value,                                   \
+        .val = (char*)value,                            \
         .len = (sizeof(value) / sizeof(value[0]) - 1)   \
         })                                              \
 

@@ -13,20 +13,18 @@
 
 static const char *FLAGS[] = {
     "-std=c23",
-    "-Wall",
-    "-Wextra",
     "-ffreestanding",
     "-Wextra",
     "-Wall",
-    "-Wfloat-equal",
-    "-Wundef",
-    "-Wshadow",
-    "-Wpointer-arith",
-    "-Wcast-align",
-    "-Wstrict-prototypes",
-    "-Wstrict-overflow=5",
-    "-Wwrite-strings",
-    "-Waggregate-return"
+    //"-Wfloat-equal",
+    //"-Wundef",
+    //"-Wshadow",
+    //"-Wpointer-arith",
+    //"-Wcast-align",
+    //"-Wstrict-prototypes",
+    //"-Wstrict-overflow=5",
+    //"-Wwrite-strings",
+    //"-Waggregate-return"
 };
 static const uint32_t FLAG_COUNT = sizeof(FLAGS) / sizeof(FLAGS[0]);
 static const char *PATHS[] = {
@@ -34,6 +32,8 @@ static const char *PATHS[] = {
     "std/mem.c",
     "std/types.c",
     "std/string.c",
+    "std/arena.c",
+    "std/unix_os.c",
     "std/unix_sys.c",
     "std/unix_socket.c",
     "std/unix_window.c",

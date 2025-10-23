@@ -16,7 +16,6 @@ u8* memcpy(u8 *dst, u8 *src, u64 size) {
         assert(                                             \
                 *size + sizeof(value) <= cap,               \
                 "buffer out of bounds in mem_write");       \
-        printf("%llu %llu %llu\n", (size_t)buf, *size, sizeof(value)); \
         assert(                                             \
                 ((size_t)buf + *size) % sizeof(value) == 0, \
                 "invalid buffer alignment in mem_write");   \
