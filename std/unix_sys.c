@@ -1,3 +1,7 @@
+#define SYS_CALL_READ       0
+#define SYS_CALL_OPEN       2
+#define SYS_CALL_CLOSE      3
+#define SYS_CALL_LSEEK      8
 #define SYS_CALL_MMAP       9
 #define SYS_CALL_MUNMAP     11
 #define SYS_CALL_SOCKET     41
@@ -14,6 +18,82 @@ void assert(bool condition, const char *msg) {
     }
 
     #endif
+}
+
+s64 sys_read(s32 fd, void *buf, u64 count) {
+    s64 result = 0;
+
+    __asm__ volatile (
+            "   movq %[asm_fd],     %%rdi\n"
+            "   movq %[asm_buf],    %%rsi\n"
+            "   movq %[asm_count],  %%rdx\n"
+            "   movl %[sys_call_n], %%eax\n"
+            "   syscall\n"
+            : "=r" (result)
+            :   [asm_fd]    "r" ((u64)fd),
+                [asm_buf]   "r" (buf),
+                [asm_count] "r" (count),
+                [sys_call_n]"r" (SYS_CALL_READ)
+            : "%rdi", "%esi", "%edx"
+    );
+
+    return result;
+}
+
+s32 sys_open(char *path, s32 flags, u32 mode) {
+    s32 result = 0;
+
+    __asm__ volatile (
+            "   movq %[asm_filename],   %%rdi\n"
+            "   movl %[asm_flags],      %%esi\n"
+            "   movl %[asm_mode],       %%edx\n"
+            "   movl %[sys_call_n],     %%eax\n"
+            "   syscall\n"
+            : "=r" (result)
+            :   [asm_filename]  "r" (path),
+                [asm_flags]     "r" (flags),
+                [asm_mode]      "r" (mode),
+                [sys_call_n]    "r" (SYS_CALL_OPEN)
+            : "%rdi", "%esi", "%edx"
+    );
+
+    return result;
+}
+
+s32 sys_close(s32 fd) {
+    s32 result = 0;
+
+    __asm__ volatile (
+            "   movl %[asm_fd],     %%edi\n"
+            "   movl %[sys_call_n], %%eax\n"
+            "   syscall\n"
+            : "=r" (result)
+            :   [asm_fd]  "r" (fd),
+                [sys_call_n]    "r" (SYS_CALL_CLOSE)
+            : "%rdi", "%esi", "%edx"
+    );
+
+    return result;
+}
+
+s64 sys_lseek(s32 fd, s64 offset, s32 whence) {
+    s64 result = 0;
+
+    __asm__ volatile (
+            "   movq %[asm_fd],     %%rdi\n"
+            "   movq %[asm_offset], %%rsi\n"
+            "   movq %[asm_whence], %%rdx\n"
+            "   movl %[sys_call_n], %%eax\n"
+            "   syscall\n"
+            : "=r" (result)
+            :   [asm_fd]        "r" ((u64)fd),
+                [asm_offset]    "r" (offset),
+                [asm_whence]    "r" ((u64)whence),
+                [sys_call_n] "r"    (SYS_CALL_LSEEK)
+            : "%rdi", "%rsi", "%rdx"
+    );
+
+    return result;
 }
 
 void *sys_mmap(void *addr, u64 length, s32 prot, s32 flags, s32 fd, s64 offset) {

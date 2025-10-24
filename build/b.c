@@ -16,6 +16,7 @@ static const char *FLAGS[] = {
     "-ffreestanding",
     "-Wextra",
     "-Wall",
+    "-fsanitize=address",
     //"-Wfloat-equal",
     //"-Wundef",
     //"-Wshadow",
