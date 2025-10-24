@@ -1,4 +1,11 @@
 #!/bin/sh
 
+if test -f app ; then
+    rm app
+fi
+if test -f app.c ; then
+    rm app.c
+fi
+
 ./build/b
 ./app

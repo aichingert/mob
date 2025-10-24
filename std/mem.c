@@ -1,9 +1,16 @@
-u8* memcpy(u8 *dst, u8 *src, u64 size) {
-    for (u64 i = 0; i < size; i++) {
+u8* memcpy(u8 *dst, u8 *src, u64 len) {
+    for (u64 i = 0; i < len; i++) {
         dst[i] = src[i];
     }
 
     return dst;
+}
+
+u8 *memset(u8 *src, u8 value, u64 len) {
+    for (u64 i = 0; i < len; i++) {
+        src[i] = value;
+    }
+    return src;
 }
 
 #define CREATE_MEM_WRITE_FUNC(type)                         \

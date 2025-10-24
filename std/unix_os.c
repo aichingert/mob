@@ -13,9 +13,7 @@
 #define MAP_ANON    0x20
 
 u8 *os_alloc(u64 bytes) {
-    u8 *mem = sys_mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-    for (u64 i = 0; i < bytes; i++) mem[i] = 0;
-    return mem;
+    return sys_mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 }
 
 s32 os_free(u8 *mem, u64 bytes) {
