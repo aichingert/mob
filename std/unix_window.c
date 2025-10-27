@@ -62,7 +62,7 @@ s32 wayland_display_connect() {
             &xdg_runtime_dir, 
             S("WAYLAND_DISPLAY"), 
             &wayland_display);
-    assert(xdg_runtime_dir.val != NULL, "no xdg runtime dir set");
+    assert(xdg_runtime_dir.val != NULL, S("no xdg runtime dir set"));
 
     if (wayland_display.val == NULL) {
         wayland_display = S("wayland-0");
@@ -71,7 +71,7 @@ s32 wayland_display_connect() {
     UnixSocketAddress addr = { .socket_family = AF_UNIX };
     assert(
             xdg_runtime_dir.len + wayland_display.len + 1 < UNIX_PATH_MAX,
-            "wayland socket path does not fit");
+            S("wayland socket path does not fit"));
     memcpy((u8*)addr.socket_path, (u8*)xdg_runtime_dir.val, xdg_runtime_dir.len);
     addr.socket_path[xdg_runtime_dir.len] = '/';
     memcpy(
@@ -79,9 +79,9 @@ s32 wayland_display_connect() {
             (u8*)wayland_display.val, wayland_display.len);
 
     s32 fd = sys_socket(AF_UNIX, SOCK_STREAM, 0);
-    assert(fd != -1, "unable to create socket");
+    assert(fd != -1, S("unable to create socket"));
     s32 result = sys_connect(fd, (SocketAddress*)&addr, sizeof(addr));
-    assert(result != -1, "unable to connect to wayland socket");
+    assert(result != -1, S("unable to connect to wayland socket"));
 
     return fd;
 }
@@ -101,7 +101,7 @@ u32 wayland_display_get_registry(s32 fd) {
     u16 msg_announced_size = wayland_header_size + sizeof(wayland_current_id);
     assert(
             roundup_4(msg_announced_size) == msg_announced_size, 
-            "invalid msg size");
+            S("invalid msg size"));
     mem_write_u16(
             buf, 
             &size, 
@@ -111,7 +111,7 @@ u32 wayland_display_get_registry(s32 fd) {
     wayland_current_id += 1;
     mem_write_u32(buf, &size, sizeof(buf), wayland_current_id);
 
-    assert(((s64)size != sys_sendto(fd, buf, size, MSG_DONTWAIT, NULL, 0)), "send failed");
+    assert(((s64)size != sys_sendto(fd, buf, size, MSG_DONTWAIT, NULL, 0)), S("send failed"));
 
     printf(
             "-> wl_display@%u.get_registry: wl_registry=%u\n",

@@ -25,7 +25,7 @@ void arena_init(Arena *arena, u64 chunk_size) {
     arena->head = NULL;
     arena->curr = NULL;
 
-    assert(chunk_size > 2 << 12, "chunk size should be bigger");
+    assert(chunk_size > 2 << 12, S("chunk size should be bigger"));
 
     u64 aligned = align_to_page_size(chunk_size + sizeof(ArenaChunk));
     u8 *mem = os_alloc(aligned);
@@ -47,7 +47,7 @@ u64 align_to_page_size(u64 bytes_to_alloc) {
 }
 
 u64 align_forward(u64 ptr, u64 align) {
-    assert(is_power_of_two(align), "alignemnt has to be a power of 2");
+    assert(is_power_of_two(align), S("alignemnt has to be a power of 2"));
 
     u64 mod = ptr & (align - 1);
     if (mod != 0) {
@@ -88,10 +88,10 @@ void arena_deinit(Arena *arena) {
 
     while (ptr != NULL) {
         ArenaChunk *nxt = ptr->next;
-        assert(os_free(ptr->mem, ptr->cap) == 0, "free failed");
+        assert(os_free(ptr->mem, ptr->cap) == 0, S("free failed"));
         ptr = nxt;
     }
 
     s32 res = os_free((u8*)arena->head, arena->head->cap + sizeof(ArenaChunk));
-    assert(res == 0, "head free failed");
+    assert(res == 0, S("head free failed"));
 }

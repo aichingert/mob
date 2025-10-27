@@ -9,17 +9,6 @@
 #define SYS_CALL_SENDTO     44
 #define SYS_CALL_EXIT       60
 
-void assert(bool condition, const char *msg) {
-    #ifndef DEBUG
-
-    if (!condition) {
-        printf("ERROR: %s\n", msg);
-        sys_exit(1);
-    }
-
-    #endif
-}
-
 s64 sys_read(s32 fd, void *buf, u64 count) {
     s64 result = 0;
 

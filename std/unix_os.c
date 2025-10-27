@@ -20,6 +20,17 @@
 #define SEEK_CUR    1
 #define SEEK_END    2
 
+void assert(bool condition, String msg) {
+    #ifndef DEBUG
+
+    if (!condition) {
+        printf("ERROR: %s\n", msg.val);
+        sys_exit(1);
+    }
+
+    #endif
+}
+
 u8 *os_alloc(u64 bytes) {
     return sys_mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 }
