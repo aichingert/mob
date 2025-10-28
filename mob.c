@@ -55,19 +55,28 @@ struct Token {
 
 struct Tokens {
     __ARRAY_HEADER__;
-    Token *val;
+    Token *arr;
 };
 
 void tokenize(Arena *stack, u8 *source, s64 size) {
     u32 pos = 0;
 
     Tokens toks = {0};
+    printf("cap %lu\n", toks.cap);
     push(stack, &toks, (Token){ .beg = 10 });
+    printf("cap %lu\n", toks.cap);
     push(stack, &toks, (Token){ .beg = 20 });
+    printf("cap %lu\n", toks.cap);
+    for (u16 i = 0; i < 5000; i++) {
+        push(stack, &toks, (Token){ .beg = i });
+    }
     push(stack, &toks, (Token){ .beg = 30 });
+    printf("cap %lu - len %lu\n", toks.cap, toks.len);
 
     for (u64 i = 0; i < toks.len; i++) {
-        printf("%u\n", toks.val[i].beg);
+        //printf("%u\n", toks.arr[i].beg);
+        //printf("%u\n", toks.arr[i].line);
+        //printf("%u\n", toks.arr[i].type);
     }
 
     while (pos < size) {
@@ -103,8 +112,8 @@ s32 main(s32 argc, const char **argv, char **environ) {
     for (u32 i = 0; i < PATH_LEN; i++) {
         printf("[INFO] reading file: `%s`\n", PATHS[i].val);
 
-        Buffer src = file_read_as_string_alloc(&app, PATHS[i]);
-        tokenize(&app, src.mem, src.len);
+        String src = file_read_as_string_alloc(&app, PATHS[i]);
+        tokenize(&app, src.val, src.len);
 
     }
 

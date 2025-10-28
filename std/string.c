@@ -1,10 +1,10 @@
 struct String {
-    char *val;
+    u8 *val;
     u64 len;
 };
 
 #define S(value) ((String){                             \
-        .val = (char*)value,                            \
+        .val = u8 ## value,                             \
         .len = (sizeof(value) / sizeof(value[0]) - 1)   \
         })                                              \
 
