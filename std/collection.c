@@ -18,7 +18,7 @@
         (array)->cap = new;                                     \
     } while(0)
 
-#define push(arena, array, element)                                         \
+#define array_push(arena, array, element)                                 \
     do {                                                                    \
         if ((array)->cap <= (array)->len + 1) {                             \
             __array_grow(arena, array);                                     \

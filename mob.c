@@ -58,28 +58,41 @@ struct Tokens {
     Token *arr;
 };
 
-void tokenize(Arena *stack, u8 *source, s64 size) {
+bool is_identifier_start(u8 character) {
+    return (character >= 'a' && character <= 'z')
+        || (character >= 'A' && character <= 'Z');
+}
+
+bool is_identifier(u8 character) {
+    return is_identifier_start(character)
+        || character == '_'
+        || (character >= '0' && character <= '9');
+}
+
+u32 read_identifier(u32 *pos, u8 *source, s64 size) {
+    u32 beg = *pos;
+    while (*pos < size && is_identifier(source[*pos])) {
+        *pos += 1;
+    }
+    return *pos - beg;
+}
+
+Tokens tokenize(Arena *stack, u8 *source, s64 size) {
     u32 pos = 0;
 
     Tokens toks = {0};
-    printf("cap %lu\n", toks.cap);
-    push(stack, &toks, (Token){ .beg = 10 });
-    printf("cap %lu\n", toks.cap);
-    push(stack, &toks, (Token){ .beg = 20 });
-    printf("cap %lu\n", toks.cap);
-    for (u16 i = 0; i < 5000; i++) {
-        push(stack, &toks, (Token){ .beg = i });
-    }
-    push(stack, &toks, (Token){ .beg = 30 });
+
+    array_push(stack, &toks, (Token){ .beg = 30 });
     printf("cap %lu - len %lu\n", toks.cap, toks.len);
 
-    for (u64 i = 0; i < toks.len; i++) {
-        //printf("%u\n", toks.arr[i].beg);
-        //printf("%u\n", toks.arr[i].line);
-        //printf("%u\n", toks.arr[i].type);
-    }
-
     while (pos < size) {
+        if (is_identifier_start(source[pos])) {
+            u32 len = read_identifier(&pos, source, size);
+
+            printf("%b\n", memeql(u8"include", 6, source + pos - size, size));
+
+            continue;
+        }
 
         switch (source[pos]) {
             case '(':
@@ -99,6 +112,7 @@ void tokenize(Arena *stack, u8 *source, s64 size) {
         pos += 1;
     }
 
+    return toks;
 }
 
 s32 main(s32 argc, const char **argv, char **environ) {

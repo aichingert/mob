@@ -18,6 +18,20 @@ u8 *memset(u8 *src, u8 value, u64 len) {
     return src;
 }
 
+bool memeql(u8 *cmp, u64 cmp_len, u8 *buf, u64 buf_len) {
+    if (cmp_len != buf_len) {
+        return false;
+    }
+
+    for (u64 i = 0; i < cmp_len; i++) {
+        if (cmp[i] != buf[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 #define CREATE_MEM_WRITE_FUNC(type)                         \
     static inline void mem_write_ ## type(                  \
             u8 *buf,                                        \
