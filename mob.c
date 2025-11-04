@@ -15,6 +15,8 @@ static const String PATHS[] = {
 };
 static const u32    PATH_LEN = sizeof(PATHS) / sizeof(PATHS[0]);
 
+#define CMP_STR(str, src, src_len) memeql(u8 ## str, sizeof(str) - 1, src, src_len)
+
 enum TokenType {
     T_ENUM          = 0,
     T_STRUCT        = 1,
@@ -33,6 +35,7 @@ enum TokenType {
     C_DEFINE        = 29,
     C_INCLUDE       = 30,
     C_MACRO_CONCAT  = 31,
+    C_BODY          = 32,
 
     TT_L_BRACE      = 40,
     TT_R_BRACE      = 41,
@@ -42,7 +45,6 @@ enum TokenType {
     TT_BACKSLASH    = 48,
 
     M_PRIORITY_T    = 60,
-    M_PRIORITY_F    = 60,
 
     R_EOF           = 80,
 };
@@ -79,18 +81,13 @@ u32 read_identifier(u32 *pos, u8 *source, s64 size) {
 
 Tokens tokenize(Arena *stack, u8 *source, s64 size) {
     u32 pos = 0;
-
+    u32 line = 0;
     Tokens toks = {0};
-
-    array_push(stack, &toks, (Token){ .beg = 30 });
-    printf("cap %lu - len %lu\n", toks.cap, toks.len);
 
     while (pos < size) {
         if (is_identifier_start(source[pos])) {
             u32 len = read_identifier(&pos, source, size);
-
-            printf("%b\n", memeql(u8"include", 6, source + pos - size, size));
-
+            array_push(stack, &toks, ((Token){ .beg = pos - len, .line = line }));
             continue;
         }
 
@@ -106,6 +103,21 @@ Tokens tokenize(Arena *stack, u8 *source, s64 size) {
             break;
             case '}':
                 printf("}\n");
+            break;
+            case '#':
+                pos += 1;
+                u32 len = read_identifier(&pos, source, size) + 1;
+
+                if          (CMP_STR("#include", source + pos - len, len)) {
+                } else if   (CMP_STR("#define", source + pos - len, len)
+                          || CMP_STR("#undef", source + pos - len, len)) {
+                } else if   (CMP_STR("#ifndef", source + pos - len, len)) {
+                } else if   (CMP_STR("#if", source + pos - len, len)
+                          || CMP_STR("#undef", source + pos - len, len)) {
+                } else if (CMP_STR("#elif", source + pos - len, len)) {
+                } else if (CMP_STR("#else", source + pos - len, len)) {
+                }
+
             break;
         }
 
