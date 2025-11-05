@@ -20,6 +20,17 @@
 #define SEEK_CUR    1
 #define SEEK_END    2
 
+/*
+//#define ASSERT((condition), msg)        \
+//    #ifndef RELEASE
+//    do {
+//        if (!(condition)) {
+//            printf("ERROR: %s\n", );
+//            sys_exit(1);
+//        }
+//    } while (0)
+*/
+
 void assert(bool condition, String msg) {
     #ifndef DEBUG
 
@@ -55,7 +66,7 @@ s32 os_read(s32 fd, u8 *mem, u64 bytes) {
 // other: r + w + e = z
 // mode = xyz
 s32 os_open_file(String file_name, s32 flags, u32 mode) {
-    return sys_open(file_name.val, flags, mode);
+    return sys_open((char*)file_name.val, flags, mode);
 }
 
 s32 os_close_file(s32 fd) {

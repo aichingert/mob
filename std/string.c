@@ -1,6 +1,12 @@
+
 struct String {
     u8 *val;
     u64 len;
+};
+
+struct Strings {
+    __ARRAY_HEADER__;
+    String *arr;
 };
 
 #define S(value) ((String){                             \
@@ -15,7 +21,7 @@ String from_c_string(char *str) {
         return s;
     }
 
-    s.val = str;
+    s.val = (u8*)str;
 
     while (str[s.len] != '\0') {
         s.len += 1;
@@ -41,4 +47,40 @@ bool c_string_begins_with(const char *c_s, String s) {
     return true;
 }
 
+bool str_begins_with(String a, String b) {
+    if (b.len > a.len) {
+        return false;
+    }
 
+    for (u64 i = 0; i < b.len; i++) {
+        if (a.val[i] == b.val[i]) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+String str_concat(Arena *arena, Strings strs) {
+    u64 len = 0;
+    u64 pos = 0;
+
+    for (u64 i = 0; i < strs.len; i++) {
+        len += strs.arr[i].len;
+    }
+
+    u8 *mem = alloc(arena, u8, len);
+
+    for (u64 i = 0; i < strs.len; i++) {
+        for (u64 j = 0; j < strs.arr[i].len; j++) {
+            mem[j + pos] = strs.arr[i].val[j];
+        }
+
+        pos += strs.arr[i].len;
+    }
+
+    return (String){
+        .val = mem,
+        .len = len,
+    };
+}

@@ -1,3 +1,5 @@
+#define __ARRAY_LEN(array) (sizeof((array)) / sizeof((array[0])))
+
 #define __ARRAY_HEADER__ struct{    \
     u64 len;                        \
     u64 cap;                        \
@@ -18,7 +20,7 @@
         (array)->cap = new;                                     \
     } while(0)
 
-#define array_push(arena, array, element)                                 \
+#define array_push(arena, array, element)                                   \
     do {                                                                    \
         if ((array)->cap <= (array)->len + 1) {                             \
             __array_grow(arena, array);                                     \
@@ -26,3 +28,18 @@
         (array)->arr[(array)->len] = (element);                             \
         (array)->len += 1;                                                  \
     } while (0)
+
+
+/*
+void* array_to_dynamic() {
+}
+
+#define array_init(arena, array_type, elements)
+    ({array_type __arr = {0}; do {
+        array_type arr = {0};
+
+        for (u64 i = 0; i < __ARRAY_LEN((elements)); i++) {
+            array_push(arena, &arr, (elements[i]));
+        }
+    } while(0)})
+*/
