@@ -29,17 +29,3 @@
         (array)->len += 1;                                                  \
     } while (0)
 
-
-/*
-void* array_to_dynamic() {
-}
-
-#define array_init(arena, array_type, elements)
-    ({array_type __arr = {0}; do {
-        array_type arr = {0};
-
-        for (u64 i = 0; i < __ARRAY_LEN((elements)); i++) {
-            array_push(arena, &arr, (elements[i]));
-        }
-    } while(0)})
-*/

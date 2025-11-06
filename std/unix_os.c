@@ -20,18 +20,10 @@
 #define SEEK_CUR    1
 #define SEEK_END    2
 
-/*
-//#define ASSERT((condition), msg)        \
-//    #ifndef RELEASE
-//    do {
-//        if (!(condition)) {
-//            printf("ERROR: %s\n", );
-//            sys_exit(1);
-//        }
-//    } while (0)
-*/
-
 void assert(bool condition, String msg) {
+    // TODO: improve with new version of mob
+    // to be a macro that also prints the
+    // condition that is being checked
     #ifndef DEBUG
 
     if (!condition) {
