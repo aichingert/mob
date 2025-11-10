@@ -50,7 +50,7 @@ enum TokenType {
 
 struct Token {
     u32 beg;
-    u32 line;
+    u32 end;
     TokenType type;
 };
 
@@ -78,25 +78,20 @@ u32 read_identifier(u32 *pos, String source) {
     return *pos - beg;
 }
 
-bool read_whitespace_and_newline(u32 *pos, u32 *line, String source) {
-    while (*pos < source.len && source.val[*pos] == ' ') {
-        if (source.val[*pos] == '\n') {
-            *line += 1;
-        }
-
+bool read_whitespace_and_newline(u32 *pos, String source) {
+    while (*pos < source.len && (source.val[*pos] == ' ' || source.val[*pos] == '\n')) {
         *pos += 1;
     }
     return *pos < source.len;
 }
 
-bool read_until_newline_or_backslash(u32 *pos, u32 *line, String source) {
+bool read_until_newline_or_backslash(u32 *pos, String source) {
     while (*pos < source.len && source.val[*pos] != '\n') {
         if (source.val[*pos] == '\\') {
             *pos += 1;
-            *line += 1;
 
             assert(
-                    read_whitespace_and_newline(pos, line, source),
+                    read_whitespace_and_newline(pos, source),
                     S("unexpected eof after backslash in macro"));
             assert(
                     source.val[*pos] == '\n',
@@ -109,7 +104,7 @@ bool read_until_newline_or_backslash(u32 *pos, u32 *line, String source) {
     return *pos < source.len;
 }
 
-bool read_until_either(u32 *pos, u32 *line, String source, String *options, u32 option_size) {
+bool read_until_either(u32 *pos, String source, String *options, u32 option_size) {
     while (*pos < source.len) {
         for (u32 i = 0; i < option_size; i++) {
             String view = {
@@ -118,7 +113,7 @@ bool read_until_either(u32 *pos, u32 *line, String source, String *options, u32 
             };
 
             if (str_begins_with(view, options[i])) {
-                *pos += 1;
+                *pos += options[i].len;
                 return true;
             }
         }
@@ -131,46 +126,47 @@ bool read_until_either(u32 *pos, u32 *line, String source, String *options, u32 
 
 Tokens tokenize(Arena *stack, String source) {
     u32 pos = 0;
-    u32 line = 0;
     Tokens toks = {0};
 
     while (pos < source.len) {
         if (is_identifier_start(source.val[pos])) {
             u32 len = read_identifier(&pos, source);
-            array_push(stack, &toks, ((Token){ .beg = pos - len, .line = line }));
+            array_push(stack, &toks, ((Token){ .beg = pos - len, .end = pos }));
             continue;
         }
 
+        Token tok = { .beg = pos, .end = pos + 1, .type = C_INCLUDE };
+
         switch (source.val[pos]) {
             case '(':
-                printf("(\n");
+                tok.type = TT_L_PAREN;
             break;
             case ')':
-                printf(")\n");
+                tok.type = TT_R_PAREN;
             break;
             case '{':
-                printf("{\n");
+                tok.type = TT_L_BRACE;
             break;
             case '}':
-                printf("}\n");
+                tok.type = TT_R_BRACE;
             break;
             case '#':
-                Token tok = { .beg = pos, .line = line, .type = C_INCLUDE };
                 pos += 1;
                 u32 len = read_identifier(&pos, source) + 1;
 
                 if          (CMP_STR("#include", source.val + pos - len, len)) {
                     assert(
-                            read_whitespace_and_newline(&pos, &line, source), 
-                            S("unexpected eof after include"));
+                        read_whitespace_and_newline(&pos, source), 
+                        S("unexpected eof after include"));
                     String end[] = {S("'"), S(">")};
 
                     assert(
-                            (source.val[pos] == '"' || source.val[pos] == '<'),
-                            S("invalid include start expected '\"' or '<'"));
+                        (source.val[pos] == '"' || source.val[pos] == '<'),
+                        S("invalid include start expected '\"' or '<'"));
                     assert(
-                            read_until_either(&pos, &line, source, end, __ARRAY_LEN(end)),
-                            S("include end not found"));
+                        read_until_either(&pos, source, end, __ARRAY_LEN(end)),
+                        S("include end not found"));
+                    tok.end = pos;
                 } else {
                     // TODO: tokenize if preprocessor
                     
@@ -200,17 +196,46 @@ Tokens tokenize(Arena *stack, String source) {
                     }
 
                     assert(
-                        read_until_newline_or_backslash(&pos, &line, source), 
+                        read_until_newline_or_backslash(&pos, source), 
                         S("unexpected eof in macro definition"));
+                    tok.end = pos;
                 }
-                array_push(stack, &toks, tok);
+                pos -= 1;
             break;
+            default: 
+                pos += 1;
+                continue;
         }
 
         pos += 1;
+        array_push(stack, &toks, tok);
     }
 
     return toks;
+}
+
+void parse(Tokens toks, String source) {
+    for (u64 i = 0; i < toks.len; i++) {
+
+        switch (toks.arr[i].type) {
+            case C_INCLUDE:
+                for (u64 j = toks.arr[i].beg; j < toks.arr[i].end; j++) {
+                    printf("%c", source.val[j]);
+                }
+                printf("\n");
+            break;
+            case C_DEFINE:
+                for (u64 j = toks.arr[i].beg; j < toks.arr[i].end; j++) {
+                    printf("%c", source.val[j]);
+                }
+                printf("\n");
+            break;
+            default:
+                printf("ERROR: unknown token type %d\n", toks.arr[i].type);
+            break;
+        }
+    }
+
 }
 
 s32 main(s32 argc, const char **argv, char **environ) {
@@ -226,15 +251,7 @@ s32 main(s32 argc, const char **argv, char **environ) {
 
         String vals = file_read_as_string_alloc(&app, PATHS[i]);
         Tokens toks = tokenize(&app, vals);
-
-        for (u64 i = 0; i < toks.len; i++) {
-            if (toks.arr[i].type == C_INCLUDE) {
-                printf("#include\n");
-            } else if (toks.arr[i].type == C_DEFINE) {
-                printf("#define\n");
-            } else {
-            }
-        }
+        parse(toks, vals);
     }
 
     arena_deinit(&app);
