@@ -28,7 +28,6 @@ static const char *FLAGS[] = {
 };
 static const uint32_t FLAG_COUNT = sizeof(FLAGS) / sizeof(FLAGS[0]);
 static const char *PATHS[] = {
-    "mob.c",
     "std/mem.c",
     "std/math.c",
     "std/file.c",
@@ -40,6 +39,7 @@ static const char *PATHS[] = {
     "std/unix_sys.c",
     "std/unix_socket.c",
     "std/unix_window.c",
+    "mob.c",
 };
 static const uint32_t PATH_COUNT = sizeof(PATHS) / sizeof(PATHS[0]);
 

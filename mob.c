@@ -48,15 +48,23 @@ enum TokenType {
     R_EOF           = 80,
 };
 
-struct Token {
+struct FileRange {
     u32 beg;
     u32 end;
+};
+
+struct Token {
     TokenType type;
+    FileRange range;
 };
 
 struct Tokens {
     __ARRAY_HEADER__;
     Token *arr;
+};
+
+struct Content {
+    Strings c_includes;
 };
 
 bool is_identifier_start(u8 character) {
@@ -129,13 +137,23 @@ Tokens tokenize(Arena *stack, String source) {
     Tokens toks = {0};
 
     while (pos < source.len) {
+        Token tok = { .range = { .beg = pos, .end = pos + 1 }, .type = C_INCLUDE };
+
         if (is_identifier_start(source.val[pos])) {
             u32 len = read_identifier(&pos, source);
-            array_push(stack, &toks, ((Token){ .beg = pos - len, .end = pos }));
+            tok.range.end = pos;
+
+            if          (CMP_STR("typedef", source.val + pos - len, len)) {
+                tok.type = T_TYPEDEF;
+            } else if   (CMP_STR("struct", source.val + pos - len, len)) {
+                tok.type = T_STRUCT;
+            } else {
+                tok.type = T_IDENT;
+            }
+
+            array_push(stack, &toks, tok);
             continue;
         }
-
-        Token tok = { .beg = pos, .end = pos + 1, .type = C_INCLUDE };
 
         switch (source.val[pos]) {
             case '(':
@@ -166,10 +184,8 @@ Tokens tokenize(Arena *stack, String source) {
                     assert(
                         read_until_either(&pos, source, end, __ARRAY_LEN(end)),
                         S("include end not found"));
-                    tok.end = pos;
                 } else {
                     // TODO: tokenize if preprocessor
-                    
                     if   (CMP_STR("#define", source.val + pos - len, len)) {
                         tok.type = C_DEFINE;
                     } else if   (CMP_STR("#if", source.val + pos - len, len)) {
@@ -198,8 +214,8 @@ Tokens tokenize(Arena *stack, String source) {
                     assert(
                         read_until_newline_or_backslash(&pos, source), 
                         S("unexpected eof in macro definition"));
-                    tok.end = pos;
                 }
+                tok.range.end = pos;
                 pos -= 1;
             break;
             default: 
@@ -214,18 +230,22 @@ Tokens tokenize(Arena *stack, String source) {
     return toks;
 }
 
-void parse(Tokens toks, String source) {
-    for (u64 i = 0; i < toks.len; i++) {
+Content parse(Arena *app, Tokens toks, String source) {
+    Content cnt = {0};
 
+    for (u64 i = 0; i < toks.len; i++) {
         switch (toks.arr[i].type) {
             case C_INCLUDE:
-                for (u64 j = toks.arr[i].beg; j < toks.arr[i].end; j++) {
-                    printf("%c", source.val[j]);
-                }
-                printf("\n");
+                u64 size = toks.arr[i].range.end - toks.arr[i].range.beg;
+                array_push(app, &cnt.c_includes, (String){ .len = size });
+                u8 *str = alloc(app, u8, size + 1);
+                memcpy(str, source.val + toks.arr[i].range.beg, size);
+                str[size] = '\0';
+
+                printf("%s\n", (char*)str);
             break;
             case C_DEFINE:
-                for (u64 j = toks.arr[i].beg; j < toks.arr[i].end; j++) {
+                for (u64 j = toks.arr[i].range.beg; j < toks.arr[i].range.end; j++) {
                     printf("%c", source.val[j]);
                 }
                 printf("\n");
@@ -236,6 +256,7 @@ void parse(Tokens toks, String source) {
         }
     }
 
+    return cnt;
 }
 
 s32 main(s32 argc, const char **argv, char **environ) {
@@ -243,18 +264,18 @@ s32 main(s32 argc, const char **argv, char **environ) {
     (void)argc;
     (void)argv;
     ENV = environ;
-    Arena app = {0};
-    arena_init(&app, 2 << 20);
+    Arena mob = {0};
+    arena_init(&mob, 2 << 20);
 
     for (u32 i = 0; i < PATH_LEN; i++) {
         printf("[INFO] reading file: `%s`\n", PATHS[i].val);
 
-        String vals = file_read_as_string_alloc(&app, PATHS[i]);
-        Tokens toks = tokenize(&app, vals);
-        parse(toks, vals);
+        String vals = file_read_as_string_alloc(&mob, PATHS[i]);
+        Tokens toks = tokenize(&mob, vals);
+        parse(&mob, toks, vals);
     }
 
-    arena_deinit(&app);
+    arena_deinit(&mob);
     return 0;
 }
 
