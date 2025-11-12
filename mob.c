@@ -48,14 +48,10 @@ enum TokenType {
     R_EOF           = 80,
 };
 
-struct FileRange {
+struct Token {
     u32 beg;
     u32 end;
-};
-
-struct Token {
     TokenType type;
-    FileRange range;
 };
 
 struct Tokens {
@@ -64,7 +60,7 @@ struct Tokens {
 };
 
 struct Content {
-    Strings c_includes;
+    String file;
 };
 
 bool is_identifier_start(u8 character) {
@@ -137,11 +133,11 @@ Tokens tokenize(Arena *stack, String source) {
     Tokens toks = {0};
 
     while (pos < source.len) {
-        Token tok = { .range = { .beg = pos, .end = pos + 1 }, .type = C_INCLUDE };
+        Token tok = { .beg = pos, .end = pos + 1, .type = C_INCLUDE };
 
         if (is_identifier_start(source.val[pos])) {
             u32 len = read_identifier(&pos, source);
-            tok.range.end = pos;
+            tok.end = pos;
 
             if          (CMP_STR("typedef", source.val + pos - len, len)) {
                 tok.type = T_TYPEDEF;
@@ -215,7 +211,7 @@ Tokens tokenize(Arena *stack, String source) {
                         read_until_newline_or_backslash(&pos, source), 
                         S("unexpected eof in macro definition"));
                 }
-                tok.range.end = pos;
+                tok.end = pos;
                 pos -= 1;
             break;
             default: 
@@ -236,16 +232,15 @@ Content parse(Arena *app, Tokens toks, String source) {
     for (u64 i = 0; i < toks.len; i++) {
         switch (toks.arr[i].type) {
             case C_INCLUDE:
-                u64 size = toks.arr[i].range.end - toks.arr[i].range.beg;
-                array_push(app, &cnt.c_includes, (String){ .len = size });
-                u8 *str = alloc(app, u8, size + 1);
-                memcpy(str, source.val + toks.arr[i].range.beg, size);
-                str[size] = '\0';
+                //u64 size = toks.arr[i].end - toks.arr[i].beg;
+                //array_push(app, &cnt.c_includes, (String){ .len = size });
+                //u8 *str = memcpy(alloc(app, u8, size + 1), source.val + toks.arr[i].beg, size);
+                //str[size] = '\0';
 
-                printf("%s\n", (char*)str);
+                //printf("%s\n", (char*)str);
             break;
             case C_DEFINE:
-                for (u64 j = toks.arr[i].range.beg; j < toks.arr[i].range.end; j++) {
+                for (u64 j = toks.arr[i].beg; j < toks.arr[i].end; j++) {
                     printf("%c", source.val[j]);
                 }
                 printf("\n");
