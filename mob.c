@@ -50,7 +50,7 @@ enum TokenType {
 
 struct Token {
     u32 beg;
-    u32 end;
+    u32 line;
     TokenType type;
 };
 
@@ -59,8 +59,8 @@ struct Tokens {
     Token *arr;
 };
 
-struct Content {
-    String file;
+struct Module {
+    StringBuilder m_includes;
 };
 
 bool is_identifier_start(u8 character) {
@@ -82,20 +82,25 @@ u32 read_identifier(u32 *pos, String source) {
     return *pos - beg;
 }
 
-bool read_whitespace_and_newline(u32 *pos, String source) {
+bool read_whitespace_and_newline(u32 *pos, u32 *line, String source) {
     while (*pos < source.len && (source.val[*pos] == ' ' || source.val[*pos] == '\n')) {
+        if (source.val[*pos] == '\n') {
+            *line += 1;
+        }
         *pos += 1;
     }
     return *pos < source.len;
 }
 
-bool read_until_newline_or_backslash(u32 *pos, String source) {
+bool read_until_newline_or_backslash(u32 *pos, u32 *line, String source) {
     while (*pos < source.len && source.val[*pos] != '\n') {
-        if (source.val[*pos] == '\\') {
+        if          (source.val[*pos] == '\n') {
+            *line += 1;
+        } else if   (source.val[*pos] == '\\') {
             *pos += 1;
 
             assert(
-                    read_whitespace_and_newline(pos, source),
+                    read_whitespace_and_newline(pos, line, source),
                     S("unexpected eof after backslash in macro"));
             assert(
                     source.val[*pos] == '\n',
@@ -108,7 +113,7 @@ bool read_until_newline_or_backslash(u32 *pos, String source) {
     return *pos < source.len;
 }
 
-bool read_until_either(u32 *pos, String source, String *options, u32 option_size) {
+bool read_until_either(u32 *pos, u32 *line, String source, String *options, u32 option_size) {
     while (*pos < source.len) {
         for (u32 i = 0; i < option_size; i++) {
             String view = {
@@ -116,6 +121,9 @@ bool read_until_either(u32 *pos, String source, String *options, u32 option_size
                 .len = source.len - *pos,
             };
 
+            if (source.val[*pos] == '\n') {
+                *line += 1;
+            }
             if (str_begins_with(view, options[i])) {
                 *pos += options[i].len;
                 return true;
@@ -130,14 +138,14 @@ bool read_until_either(u32 *pos, String source, String *options, u32 option_size
 
 Tokens tokenize(Arena *stack, String source) {
     u32 pos = 0;
+    u32 line = 0;
     Tokens toks = {0};
 
     while (pos < source.len) {
-        Token tok = { .beg = pos, .end = pos + 1, .type = C_INCLUDE };
+        Token tok = { .beg = pos, .line = line, .type = C_INCLUDE };
 
         if (is_identifier_start(source.val[pos])) {
             u32 len = read_identifier(&pos, source);
-            tok.end = pos;
 
             if          (CMP_STR("typedef", source.val + pos - len, len)) {
                 tok.type = T_TYPEDEF;
@@ -170,7 +178,7 @@ Tokens tokenize(Arena *stack, String source) {
 
                 if          (CMP_STR("#include", source.val + pos - len, len)) {
                     assert(
-                        read_whitespace_and_newline(&pos, source), 
+                        read_whitespace_and_newline(&pos, &line, source), 
                         S("unexpected eof after include"));
                     String end[] = {S("'"), S(">")};
 
@@ -178,7 +186,7 @@ Tokens tokenize(Arena *stack, String source) {
                         (source.val[pos] == '"' || source.val[pos] == '<'),
                         S("invalid include start expected '\"' or '<'"));
                     assert(
-                        read_until_either(&pos, source, end, __ARRAY_LEN(end)),
+                        read_until_either(&pos, &line, source, end, __ARRAY_LEN(end)),
                         S("include end not found"));
                 } else {
                     // TODO: tokenize if preprocessor
@@ -208,12 +216,12 @@ Tokens tokenize(Arena *stack, String source) {
                     }
 
                     assert(
-                        read_until_newline_or_backslash(&pos, source), 
+                        read_until_newline_or_backslash(&pos, &line, source), 
                         S("unexpected eof in macro definition"));
                 }
-                tok.end = pos;
                 pos -= 1;
             break;
+            case '\n': line += 1; [[ fallthrough ]];
             default: 
                 pos += 1;
                 continue;
@@ -226,32 +234,12 @@ Tokens tokenize(Arena *stack, String source) {
     return toks;
 }
 
-Content parse(Arena *app, Tokens toks, String source) {
-    Content cnt = {0};
+void append_to_module(Arena *app, Module *module, Tokens toks) {
 
     for (u64 i = 0; i < toks.len; i++) {
-        switch (toks.arr[i].type) {
-            case C_INCLUDE:
-                //u64 size = toks.arr[i].end - toks.arr[i].beg;
-                //array_push(app, &cnt.c_includes, (String){ .len = size });
-                //u8 *str = memcpy(alloc(app, u8, size + 1), source.val + toks.arr[i].beg, size);
-                //str[size] = '\0';
 
-                //printf("%s\n", (char*)str);
-            break;
-            case C_DEFINE:
-                for (u64 j = toks.arr[i].beg; j < toks.arr[i].end; j++) {
-                    printf("%c", source.val[j]);
-                }
-                printf("\n");
-            break;
-            default:
-                printf("ERROR: unknown token type %d\n", toks.arr[i].type);
-            break;
-        }
     }
 
-    return cnt;
 }
 
 s32 main(s32 argc, const char **argv, char **environ) {
@@ -262,12 +250,29 @@ s32 main(s32 argc, const char **argv, char **environ) {
     Arena mob = {0};
     arena_init(&mob, 2 << 20);
 
+    u32 len = 1000000;
+    u8 *val = alloc(&mob, u8, len, true);
+    StringBuilder sb = {0};
+
+    for (u32 i = 0; i < len; i++) {
+        val[i] = 48;
+        sb_push_char(&mob, &sb, 'A');
+    }
+
+    printf("%s\n", (char*)sb.arr);
+    //sb_push_char(&mob, &sb, 'A');
+    //sb_push_str(&mob, &sb, str);
+
+    //printf("LEN: %d %d\n", sb.len, len);
+
+    Module module = {0};
+
     for (u32 i = 0; i < PATH_LEN; i++) {
         printf("[INFO] reading file: `%s`\n", PATHS[i].val);
 
         String vals = file_read_as_string_alloc(&mob, PATHS[i]);
         Tokens toks = tokenize(&mob, vals);
-        parse(&mob, toks, vals);
+        append_to_module(&mob, &module, toks);
     }
 
     arena_deinit(&mob);

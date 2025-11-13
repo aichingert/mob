@@ -1,4 +1,3 @@
-
 struct String {
     u8 *val;
     u64 len;
@@ -7,6 +6,11 @@ struct String {
 struct Strings {
     __ARRAY_HEADER__;
     String *arr;
+};
+
+struct StringBuilder {
+    __ARRAY_HEADER__;
+    u8 *arr;
 };
 
 #define S(value) ((String){                             \
@@ -30,7 +34,7 @@ String from_c_string(char *str) {
     return s;
 }
 
-bool c_string_begins_with(const char *c_s, String s) {
+bool c_string_begins_with_str(const char *c_s, String s) {
     if (s.val == NULL && c_s == NULL) {
         return true;
     }
@@ -84,3 +88,28 @@ String str_concat(Arena *arena, Strings strs) {
         .len = len,
     };
 }
+
+
+// STRING_BUILDER
+
+void sb_push_char(Arena *arena, StringBuilder *sb, char c) {
+    array_push(arena, sb, (u8)c);
+}
+
+void sb_push_str(Arena *arena, StringBuilder *sb, String str) {
+    if (sb->len + str.len < sb->cap) {
+        memcpy(sb->arr + sb->len, str.val, str.len);
+        sb->len += str.len;
+        return;
+    }
+
+    printf("%u %u\n", sb->len, str.len);
+
+    u8 *arr = alloc(arena, u8, sb->len + str.len + 4096);
+    memcpy(arr, sb->arr, sb->len);
+    memcpy(arr + sb->len, str.val, str.len);
+    sb->len += str.len;
+}
+
+
+

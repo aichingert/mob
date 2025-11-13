@@ -28,13 +28,12 @@ void arena_init(Arena *arena, u64 chunk_size) {
     assert(chunk_size > 2 << 12, S("chunk size should be bigger"));
 
     u64 aligned = align_to_page_size(chunk_size + sizeof(ArenaChunk));
-    u8 *mem = os_alloc(aligned);
 
-    arena->head = (ArenaChunk*)mem;
+    arena->head = (ArenaChunk*)os_alloc(aligned);
     arena->curr = arena->head;
     arena->head->len = 0;
     arena->head->cap = aligned - sizeof(ArenaChunk);
-    arena->head->mem = mem + sizeof(ArenaChunk);
+    arena->head->mem = (u8*)arena->head + sizeof(ArenaChunk);
     arena->head->next = NULL;
 }
 
@@ -65,13 +64,16 @@ void *arena_alloc(Arena *arena, u64 size, u64 align, u64 count, bool zero) {
     if (curr->cap - curr->len < padding + size * count) {
         padding = 0;
 
-        u64 chunk_size = align_to_page_size(MAX(arena->chunk_size, size * count));
+        u64 chunk_size = align_to_page_size(MAX(arena->chunk_size, sizeof(ArenaChunk) + size * count));
+        assert(chunk_size % PAGE_SIZE == 0, S("NOT MULTIPLE"));
+
         curr->next = (ArenaChunk*)os_alloc(chunk_size);
         arena->curr = curr->next;
         curr = curr->next;
         curr->len = 0;
         curr->cap = chunk_size - sizeof(ArenaChunk);
         curr->mem = (u8*)arena->curr + sizeof(ArenaChunk);
+        curr->next = NULL;
     }
 
     u8 *mem = curr->mem + curr->len + padding;
@@ -84,14 +86,25 @@ void *arena_alloc(Arena *arena, u64 size, u64 align, u64 count, bool zero) {
 }
 
 void arena_deinit(Arena *arena) {
-    ArenaChunk *ptr = arena->head->next;
-
-    while (ptr != NULL) {
-        ArenaChunk *nxt = ptr->next;
-        assert(os_free(ptr->mem, ptr->cap) == 0, S("free failed"));
-        ptr = nxt;
+    if (arena->head->next != NULL) {
+        arena_rec_deinit(arena->head);
     }
 
+    // TODO: why not - sizeof(ArenaChunk) for head? fails with errno EINVAL
     s32 res = os_free((u8*)arena->head, arena->head->cap + sizeof(ArenaChunk));
     assert(res == 0, S("head free failed"));
+}
+
+// TODO: don't like this solution should
+// implement it differently...
+// NOTE: assumes `chunk->next != NULL`
+void arena_rec_deinit(ArenaChunk *chunk) {
+    assert(chunk->next != NULL, S("next chunk has to be non null"));
+    if (chunk->next->next != NULL) {
+        arena_rec_deinit(chunk->next);
+    }
+
+    s32 res = os_free(chunk->next->mem - sizeof(ArenaChunk), chunk->next->cap + sizeof(ArenaChunk));
+    assert(res == 0, S("free failed"));
+    chunk->next = NULL;
 }
