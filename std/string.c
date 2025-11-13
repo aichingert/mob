@@ -103,11 +103,11 @@ void sb_push_str(Arena *arena, StringBuilder *sb, String str) {
         return;
     }
 
-    printf("%u %u\n", sb->len, str.len);
-
-    u8 *arr = alloc(arena, u8, sb->len + str.len + 4096);
+    u8 *arr = alloc(arena, u8, sb->len + str.len);
     memcpy(arr, sb->arr, sb->len);
     memcpy(arr + sb->len, str.val, str.len);
+
+    sb->arr = arr;
     sb->len += str.len;
 }
 

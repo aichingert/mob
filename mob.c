@@ -256,14 +256,17 @@ s32 main(s32 argc, const char **argv, char **environ) {
 
     for (u32 i = 0; i < len; i++) {
         val[i] = 48;
-        sb_push_char(&mob, &sb, 'A');
     }
 
+    String str = {
+        .len = len,
+        .val = val,
+    };
+    sb_push_str(&mob, &sb, str);
     printf("%s\n", (char*)sb.arr);
     //sb_push_char(&mob, &sb, 'A');
-    //sb_push_str(&mob, &sb, str);
 
-    //printf("LEN: %d %d\n", sb.len, len);
+    printf("LEN: %d %d\n", sb.len, len);
 
     Module module = {0};
 
