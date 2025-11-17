@@ -60,6 +60,7 @@ struct Tokens {
 };
 
 struct Module {
+
     StringBuilder m_includes;
 };
 
@@ -241,6 +242,16 @@ void append_to_module(Arena *app, Module *module, Tokens toks) {
     }
 
 }
+
+// NOTE: implementation decided
+// this preprocessor is just a 
+// type finder and will put all 
+// function definitions on top
+// but lets the single files be 
+// and just includes them as the
+// final project therefore you
+// get the positives of multithread
+// builds
 
 s32 main(s32 argc, const char **argv, char **environ) {
     // TODO: maybe add flags

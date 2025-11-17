@@ -1,5 +1,15 @@
 #define __ARRAY_LEN(array) (sizeof((array)) / sizeof((array[0])))
 
+// usage:
+//
+// struct Numbers {
+//     __ARRAY_HEADER__;
+//     s32 *arr;
+// };
+//
+// Numbers nums = {0};
+// array_push(ARENA, &nums, 10);
+// assert(nums.arr[nums.len - 1] == 10, S("bug in array");
 #define __ARRAY_HEADER__ struct{    \
     u64 len;                        \
     u64 cap;                        \
@@ -28,4 +38,23 @@
         (array)->arr[(array)->len] = (element);                             \
         (array)->len += 1;                                                  \
     } while (0)
+
+// usage:
+//
+// struct Types {
+//     __HM_HEADER__;
+//     u8 *key;
+//
+//    // ... fields
+//    u32 file;
+//    u32 token;
+// };
+// Types t = {0};
+// String s = S("Token");
+// TODO: think about functions
+// hm_putp(ARENA, &t, s.val, s.len, Types, Types{ .file = 10, .token = 5})
+// Types tok = hm_getp(ARENA, &t, s.val, s.len, Types);
+#define __HASHMAP_HEADER__ struct { \
+
+}
 
