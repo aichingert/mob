@@ -1,16 +1,10 @@
-#define __ARRAY_LEN(array) (sizeof((array)) / sizeof((array[0])))
+#define mob_static_array_len(array) (sizeof((array)) / sizeof((array[0])))
 
 // usage:
 //
-// struct Numbers {
-//     __ARRAY_HEADER__;
-//     s32 *arr;
-// };
-//
-// Numbers nums = {0};
-// array_push(ARENA, &nums, 10);
-// assert(nums.arr[nums.len - 1] == 10, S("bug in array");
-
+// s32 *nums = NULL;
+// array_push(ARENA, nums, 10);
+// assert(nums[mob_array_len(nums) - 1] == 10, S("bug in array");
 struct MobArrayHeader {
     u64 len;
     u64 cap;
@@ -47,6 +41,11 @@ void *mob_array_grow(Arena *arena, void *array, u64 arr_elem_size, u64 n) {
     return b;
 }
 
+struct MobHmHeader {
+    u64 size;
+    u64 taken;
+};
+
 // usage:
 //
 // struct Type {
@@ -56,12 +55,11 @@ void *mob_array_grow(Arena *arena, void *array, u64 arr_elem_size, u64 n) {
 //     u32 token;
 // };
 //
-// struct Types {
-//     __HM_HEADER__;
-// };
-// Types t = {0};
+// Type *t = NULL;
 // String s = S("Token");
 // TODO: think about functions
+//
+// WRONG--
 // hm_putp(ARENA, &t, s.val, s.len, Types, Types{ .file = 10, .token = 5})
 // Types tok = hm_getp(ARENA, &t, s.val, s.len, Types);
 //#define __HM_HEADER__ struct { \

@@ -13,7 +13,7 @@ static const String PATHS[] = {
     S("example/app.c"),
     S("example/math.c"),
 };
-static const u32    PATH_LEN = __ARRAY_LEN(PATHS);
+static const u32    PATH_LEN = mob_static_array_len(PATHS);
 
 #define CMP_STR(str, src, src_len) memeql(u8 ## str, sizeof(str) - 1, src, src_len)
 
@@ -182,7 +182,7 @@ Token *tokenize(Arena *stack, String source) {
                         (source.val[pos] == '"' || source.val[pos] == '<'),
                         S("invalid include start expected '\"' or '<'"));
                     assert(
-                        read_until_either(&pos, &line, source, end, __ARRAY_LEN(end)),
+                        read_until_either(&pos, &line, source, end, mob_static_array_len(end)),
                         S("include end not found"));
                 } else {
                     // TODO: tokenize if preprocessor
@@ -256,25 +256,6 @@ s32 main(s32 argc, const char **argv, char **environ) {
     ENV = environ;
     Arena mob = {0};
     arena_init(&mob, 2 << 20);
-
-    
-    u32 len = 50;
-    u8 *val = alloc(&mob, u8, len, true);
-    StringBuilder *sb = NULL;
-
-    for (u32 i = 0; i < len; i++) {
-        val[i] = 48;
-    }
-
-    String str = {
-        .len = len,
-        .val = val,
-    };
-    sb_push_str(&mob, sb, str);
-    sb_push_char(&mob, sb, 'A');
-    printf("%s\n", (char*)sb);
-
-    printf("LEN: %d %d\n", mob_array_len(sb), len);
 
     Module module = {0};
 
