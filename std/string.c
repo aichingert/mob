@@ -3,15 +3,7 @@ struct String {
     u64 len;
 };
 
-struct Strings {
-    __ARRAY_HEADER__;
-    String *arr;
-};
-
-struct StringBuilder {
-    __ARRAY_HEADER__;
-    u8 *arr;
-};
+typedef u8 StringBuilder;
 
 #define S(value) ((String){                             \
         .val = u8 ## value,                             \
@@ -65,22 +57,22 @@ bool str_begins_with(String a, String b) {
     return false;
 }
 
-String str_concat(Arena *arena, Strings strs) {
+String str_concat(Arena *arena, String *strs) {
     u64 len = 0;
     u64 pos = 0;
 
-    for (u64 i = 0; i < strs.len; i++) {
-        len += strs.arr[i].len;
+    for (u64 i = 0; i < mob_array_len(strs); i++) {
+        len += strs[i].len;
     }
 
     u8 *mem = alloc(arena, u8, len);
 
-    for (u64 i = 0; i < strs.len; i++) {
-        for (u64 j = 0; j < strs.arr[i].len; j++) {
-            mem[j + pos] = strs.arr[i].val[j];
+    for (u64 i = 0; i < mob_array_len(strs); i++) {
+        for (u64 j = 0; j < strs[i].len; j++) {
+            mem[j + pos] = strs[i].val[j];
         }
 
-        pos += strs.arr[i].len;
+        pos += strs[i].len;
     }
 
     return (String){
@@ -92,24 +84,13 @@ String str_concat(Arena *arena, Strings strs) {
 
 // STRING_BUILDER
 
-void sb_push_char(Arena *arena, StringBuilder *sb, char c) {
-    array_push(arena, sb, (u8)c);
+#define sb_push_char(arena, sb, c)  array_push(arena, sb, (u8)c)
+#define sb_push_str(arena, sb, str) (array_grow((arena), (sb), (str).len), mob_sb_push_str((sb), (str)))
+
+void mob_sb_push_str(StringBuilder *sb, String str) {
+    assert(mob_array_cap(sb) >= mob_array_len(sb) + str.len, S("string builder does not have enough cap"));
+
+    memcpy(sb + mob_array_len(sb), str.val, str.len);
+    mob_array_header(sb)->len += str.len;
 }
-
-void sb_push_str(Arena *arena, StringBuilder *sb, String str) {
-    if (sb->len + str.len < sb->cap) {
-        memcpy(sb->arr + sb->len, str.val, str.len);
-        sb->len += str.len;
-        return;
-    }
-
-    u8 *arr = alloc(arena, u8, sb->len + str.len);
-    memcpy(arr, sb->arr, sb->len);
-    memcpy(arr + sb->len, str.val, str.len);
-
-    sb->arr = arr;
-    sb->len += str.len;
-}
-
-
 

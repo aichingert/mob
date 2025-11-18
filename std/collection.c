@@ -16,63 +16,36 @@ struct MobArrayHeader {
     u64 cap;
 };
 
-#define mob_array_header(array) ((MobArrayHeader *)((void*)(array) - sizeof(MobArrayHeader) * 8))
-
+#define mob_array_header(array) ((MobArrayHeader *)((void*)(array) - sizeof(MobArrayHeader)))
 #define mob_array_len(array)    ((array) ? mob_array_header(array)->len : 0)
-
 #define mob_array_cap(array)    ((array) ? mob_array_header(array)->cap : 0)
 
-#define array_grow(arena, array, n) 10
-#define array_push(arena, array, element) 10
+#define array_grow(arena, array, n) ((array) = mob_array_grow((arena), (array), sizeof *(array), (n)))
+#define array_push(arena, array, element)   \
+    (array_grow(arena, array, 1),       \
+     (array)[mob_array_header(array)->len++] = (element))
 
 void *mob_array_grow(Arena *arena, void *array, u64 arr_elem_size, u64 n) {
-    u64 cap = mob_array_cap(array) ? mob_array_cap(array) : 4096;
-    while (cap < n) {
-        cap *= 2;
+    if (mob_array_cap(array) >= mob_array_len(array) + n) {
+        return array;
     }
 
-    u8 *b = alloc(arena, u8, arr_elem * cap + sizeof(MobArrayHeader), size, 1, 0);
-    b += sizeof(MobArrayHeader) * 8;
+    u64 cap = mob_array_cap(array) ? mob_array_cap(array) : 4096;
+    while (mob_array_len(array) + n >= cap) {
+        cap = cap * 2;
+    }
 
-    if (array == NULL) {
+    u8 *b = alloc(arena, u8, arr_elem_size * cap + sizeof(MobArrayHeader), true);
+    b += sizeof(MobArrayHeader);
+
+    if (array != NULL) {
         b = memcpy(b, (u8*)array, mob_array_len(array) * arr_elem_size);
     }
 
+    mob_array_header(b)->len = mob_array_len(array);
+    mob_array_header(b)->cap = cap;
     return b;
 }
-
-void *mob_array_push(Arena *arena, void *array, u64 arr_elem_size, void *element) {
-
-}
-
-#define __ARRAY_HEADER__ struct{    \
-    u64 len;                        \
-    u64 cap;                        \
-}
-
-#define __array_grow(arena, array)                              \
-    do {                                                        \
-        u64 new = (array)->cap;                                 \
-        if (new == 0) {                                         \
-            new = 4096;                                         \
-        } else {                                                \
-            new = new * 2;                                      \
-        }                                                       \
-        (array)->arr = (void*)memcpy(                           \
-                alloc((arena), *array, new),                    \
-                (u8*)(array)->arr,                              \
-                sizeof(*array) * (array)->len);                 \
-        (array)->cap = new;                                     \
-    } while(0)
-
-#define array_push(arena, array, element)                                   \
-    do {                                                                    \
-        if ((array)->cap <= (array)->len + 1) {                             \
-            __array_grow(arena, array);                                     \
-        }                                                                   \
-        (array)->arr[(array)->len] = (element);                             \
-        (array)->len += 1;                                                  \
-    } while (0)
 
 // usage:
 //
@@ -91,7 +64,7 @@ void *mob_array_push(Arena *arena, void *array, u64 arr_elem_size, void *element
 // TODO: think about functions
 // hm_putp(ARENA, &t, s.val, s.len, Types, Types{ .file = 10, .token = 5})
 // Types tok = hm_getp(ARENA, &t, s.val, s.len, Types);
-#define __HM_HEADER__ struct { \
-
-}
+//#define __HM_HEADER__ struct { \
+//
+//}
 

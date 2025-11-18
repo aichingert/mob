@@ -54,11 +54,6 @@ struct Token {
     TokenType type;
 };
 
-struct Tokens {
-    __ARRAY_HEADER__;
-    Token *arr;
-};
-
 struct Module {
 
     StringBuilder m_includes;
@@ -137,10 +132,10 @@ bool read_until_either(u32 *pos, u32 *line, String source, String *options, u32 
     return false;
 }
 
-Tokens tokenize(Arena *stack, String source) {
+Token *tokenize(Arena *stack, String source) {
     u32 pos = 0;
     u32 line = 0;
-    Tokens toks = {0};
+    Token *toks = NULL;
 
     while (pos < source.len) {
         Token tok = { .beg = pos, .line = line, .type = C_INCLUDE };
@@ -156,7 +151,7 @@ Tokens tokenize(Arena *stack, String source) {
                 tok.type = T_IDENT;
             }
 
-            array_push(stack, &toks, tok);
+            array_push(stack, toks, tok);
             continue;
         }
 
@@ -229,15 +224,17 @@ Tokens tokenize(Arena *stack, String source) {
         }
 
         pos += 1;
-        array_push(stack, &toks, tok);
+        array_push(stack, toks, tok);
     }
 
     return toks;
 }
 
-void append_to_module(Arena *app, Module *module, Tokens toks) {
+void append_to_module(Arena *app, Module *module, Token *toks) {
+    (void)app;
+    (void)module;
 
-    for (u64 i = 0; i < toks.len; i++) {
+    for (u64 i = 0; i < mob_array_len(toks); i++) {
 
     }
 
@@ -252,7 +249,6 @@ void append_to_module(Arena *app, Module *module, Tokens toks) {
 // final project therefore you
 // get the positives of multithread
 // builds
-
 s32 main(s32 argc, const char **argv, char **environ) {
     // TODO: maybe add flags
     (void)argc;
@@ -261,9 +257,10 @@ s32 main(s32 argc, const char **argv, char **environ) {
     Arena mob = {0};
     arena_init(&mob, 2 << 20);
 
-    u32 len = 1000000;
+    
+    u32 len = 50;
     u8 *val = alloc(&mob, u8, len, true);
-    StringBuilder sb = {0};
+    StringBuilder *sb = NULL;
 
     for (u32 i = 0; i < len; i++) {
         val[i] = 48;
@@ -273,11 +270,11 @@ s32 main(s32 argc, const char **argv, char **environ) {
         .len = len,
         .val = val,
     };
-    sb_push_str(&mob, &sb, str);
-    printf("%s\n", (char*)sb.arr);
-    //sb_push_char(&mob, &sb, 'A');
+    sb_push_str(&mob, sb, str);
+    sb_push_char(&mob, sb, 'A');
+    printf("%s\n", (char*)sb);
 
-    printf("LEN: %d %d\n", sb.len, len);
+    printf("LEN: %d %d\n", mob_array_len(sb), len);
 
     Module module = {0};
 
@@ -285,7 +282,7 @@ s32 main(s32 argc, const char **argv, char **environ) {
         printf("[INFO] reading file: `%s`\n", PATHS[i].val);
 
         String vals = file_read_as_string_alloc(&mob, PATHS[i]);
-        Tokens toks = tokenize(&mob, vals);
+        Token *toks = tokenize(&mob, vals);
         append_to_module(&mob, &module, toks);
     }
 
