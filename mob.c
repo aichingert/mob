@@ -249,6 +249,13 @@ void append_to_module(Arena *app, Module *module, Token *toks) {
 // final project therefore you
 // get the positives of multithread
 // builds
+
+struct TestMap {
+    s32 key;
+
+    u8 val;
+};
+
 s32 main(s32 argc, const char **argv, char **environ) {
     // TODO: maybe add flags
     (void)argc;
@@ -260,6 +267,10 @@ s32 main(s32 argc, const char **argv, char **environ) {
     String s = S("hello, world\n");
     String s1 = S("hello,world\n");
     u64 mod = 4096;
+
+    TestMap *map = NULL;
+    int key = -1;
+    mob_hm_put(&mob, map, key, 'A');
 
     printf("%lu - %lu\n", mob_hm_hasher(s.val, 1, s.len) % mod, mob_hm_hasher(s1.val, 1, s1.len) % mod);
 

@@ -24,7 +24,7 @@ void *mob_array_grow(Arena *arena, void *array, u64 arr_elem_size, u64 n) {
         return array;
     }
 
-    u64 cap = mob_array_cap(array) ? mob_array_cap(array) : 4096;
+    u64 cap = MAX(mob_array_cap(array), 1024);
     while (mob_array_len(array) + n >= cap) {
         cap = cap * 2;
     }
@@ -42,36 +42,79 @@ void *mob_array_grow(Arena *arena, void *array, u64 arr_elem_size, u64 n) {
 }
 
 struct MobHmHeader {
-    u64 size;
+    // check if slot is available
+    u64 *used;
+    u64 slots;
     u64 taken;
 };
 
 #define mob_hm_header(hm)   ((MobHmHeader*)((void*)(hm) - sizeof(MobHmHeader)))
-#define mob_hm_size(hm)     ((hm) ? mob_hm_header(hm)->size : 0)
+#define mob_hm_slots(hm)    ((hm) ? mob_hm_header(hm)->slots : 0)
 #define mob_hm_taken(hm)    ((hm) ? mob_hm_header(hm)->taken : 0)
+#define mob_hm_take_slot(hm, pos) \
+                            ((hm) ? hm_take_slot(hm, pos) : 1)
+#define mob_hm_is_slot_taken(hm, pos) \
+                            ((hm) ? hm_is_slot_taken(hm, pos) : 1)
 
-#define mob_hm_put(arena, hm, kv)                   \
-    ((hm) = hm_maybe_grow(arena, hm, sizeof(kv)))    
+// TODO: address of could be made with array decaying to ptr
+#define mob_hm_put(arena, hm, key, value)   \
+    ((hm) = hm_maybe_grow(arena, (hm), sizeof(*(hm))), hm_put((hm), &(key), sizeof((hm)->key)))
+
+bool hm_take_slot(void *hm, u64 pos) {
+    if (hm_is_slot_taken(hm, pos)) return false;
+
+    u64 arr_idx = pos / 64;
+    u64 bin_idx = 1 << (pos % 64);
+    mob_hm_header(hm)->used[arr_idx] |= mob_hm_header(hm)->used[arr_idx] | bin_idx;
+    return true; 
+}
+
+bool hm_is_slot_taken(void *hm, u64 pos) {
+    u64 arr_idx = pos / 64;
+    u64 bin_idx = 1 << (pos % 64);
+    return (mob_hm_header(hm)->used[arr_idx] & bin_idx) == bin_idx;
+}
 
 void *hm_maybe_grow(Arena *arena, void *hm, u64 kv_size) {
-    if (mob_hm_size(hm) > mob_hm_taken(hm) * 2) {
+    if (mob_hm_slots(hm) > mob_hm_taken(hm) * 2) {
         return hm;
     }
 
-    u64 size    = MAX(mob_hm_size(hm) * 2, 1024);
-    u8 *mem     = alloc(arena, u8, kv_size * size);
+    u64 size        = MAX(mob_hm_slots(hm) * 2, 1024);
+    u64 used_len    = size / 8;
+    u64 alloc_len   = sizeof(MobHmHeader) + used_len + kv_size * size;
+    u8 *realloc_hm  = alloc(arena, u8, alloc_len, true);
+    u64 *used_ptr   = (u64*)realloc_hm;
 
-    return hm;
+    realloc_hm      += used_len + sizeof(MobHmHeader);
+    mob_hm_header(realloc_hm)->slots    = size;
+    mob_hm_header(realloc_hm)->used     = used_ptr;
+
+    // TODO: copy old data
+    // use bit mask to find
+    // values
+    return realloc_hm;
 }
 
-void *hm_put(Arena *arena, void *hm, u64 kv_size) {
+void *hm_put(void *hm, void *key, u64 key_size) {
+    u64 hash    = mob_hm_hasher(key, key_size, 1);
+    u64 pos     = hash % mob_hm_slots(hm);
+
+    while (hm_is_slot_taken(hm, pos)) {
+        printf("%lu\n", pos);
+        pos = (pos + 1) % mob_hm_slots(hm);
+    }
+
+    printf("%lu %lu\n", mob_hm_slots(hm), hash);
+    printf("%b %lu\n", hm_is_slot_taken(hm, 200), hash);
+
     return hm;
 }
 
 // NOTE: http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param
 u64 mob_hm_hasher(void *key, u64 key_size, u64 key_len) {
-    u64 prime   = 1099511628211;
-    u64 hash    = 14695981039346656037;
+    u64 prime   = 1099511628211U;
+    u64 hash    = 14695981039346656037U;
 
     u8 *key_octets = key;
 
