@@ -15,8 +15,8 @@ struct MobArrayHeader {
 #define mob_array_cap(array)    ((array) ? mob_array_header(array)->cap : 0)
 
 #define array_grow(arena, array, n) ((array) = mob_array_grow((arena), (array), sizeof *(array), (n)))
-#define array_push(arena, array, element)   \
-    (array_grow(arena, array, 1),       \
+#define array_push(arena, array, element)                   \
+    (array_grow(arena, array, 1),                           \
      (array)[mob_array_header(array)->len++] = (element))
 
 void *mob_array_grow(Arena *arena, void *array, u64 arr_elem_size, u64 n) {
@@ -45,6 +45,43 @@ struct MobHmHeader {
     u64 size;
     u64 taken;
 };
+
+#define mob_hm_header(hm)   ((MobHmHeader*)((void*)(hm) - sizeof(MobHmHeader)))
+#define mob_hm_size(hm)     ((hm) ? mob_hm_header(hm)->size : 0)
+#define mob_hm_taken(hm)    ((hm) ? mob_hm_header(hm)->taken : 0)
+
+#define mob_hm_put(arena, hm, kv)                   \
+    ((hm) = hm_maybe_grow(arena, hm, sizeof(kv)))    
+
+void *hm_maybe_grow(Arena *arena, void *hm, u64 kv_size) {
+    if (mob_hm_size(hm) > mob_hm_taken(hm) * 2) {
+        return hm;
+    }
+
+    u64 size    = MAX(mob_hm_size(hm) * 2, 1024);
+    u8 *mem     = alloc(arena, u8, kv_size * size);
+
+    return hm;
+}
+
+void *hm_put(Arena *arena, void *hm, u64 kv_size) {
+    return hm;
+}
+
+// NOTE: http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param
+u64 mob_hm_hasher(void *key, u64 key_size, u64 key_len) {
+    u64 prime   = 1099511628211;
+    u64 hash    = 14695981039346656037;
+
+    u8 *key_octets = key;
+
+    for (u64 i = 0; i < key_size * key_len; i++) {
+        hash = hash ^ key_octets[i];
+        hash = hash * prime;
+    }
+
+    return hash;
+}
 
 // usage:
 //

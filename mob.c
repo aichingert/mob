@@ -257,6 +257,12 @@ s32 main(s32 argc, const char **argv, char **environ) {
     Arena mob = {0};
     arena_init(&mob, 2 << 20);
 
+    String s = S("hello, world\n");
+    String s1 = S("hello,world\n");
+    u64 mod = 4096;
+
+    printf("%lu - %lu\n", mob_hm_hasher(s.val, 1, s.len) % mod, mob_hm_hasher(s1.val, 1, s1.len) % mod);
+
     Module module = {0};
 
     for (u32 i = 0; i < PATH_LEN; i++) {
