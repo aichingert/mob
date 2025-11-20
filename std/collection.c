@@ -57,11 +57,16 @@ struct MobHmHeader {
                             ((hm) ? hm_is_slot_taken(hm, pos) : 1)
 
 // TODO: address of could be made with array decaying to ptr
-#define mob_hm_grow(arena, hm)      ((hm) = hm_maybe_grow(arena, (hm), sizeof(*(hm))))
-#define mob_hm_put(arena, hm, key, value)   \
-                                    (mob_hm_grow(arena, hm), \
-                                     hm_put((hm), &(key), sizeof((hm)->key), &(value), sizeof((value)), sizeof(*(hm))))
-#define mob_hm_get(arena, hm, key)  (hm_get((hm), sizeof(*(hm)), &(key), sizeof((hm)->key)))
+#define mob_hm_grow(arena, hm) \
+        ((hm) = hm_maybe_grow(arena, (hm), sizeof(*(hm))))
+#define mob_hm_put(arena, hm, key, value) \
+        (mob_hm_grow(arena, hm), \
+        hm_put((hm), &(key), sizeof((hm)->key), &(value), sizeof(*(hm))))
+#define mob_hm_put_s(arena, hm, key, s_value) \
+        (mob_hm_grow(arena, hm), \
+        hm_put((hm), &(key), sizeof((hm)->key), &(s_value) - sizeof((hm)->key), sizeof(*(hm))))
+#define mob_hm_get(arena, hm, key) \
+        (hm_get((hm), sizeof(*(hm)), &(key), sizeof((hm)->key)))
 
 bool hm_take_slot(void *hm, u64 pos) {
     if (hm_is_slot_taken(hm, pos)) return false;
@@ -99,7 +104,7 @@ void *hm_maybe_grow(Arena *arena, void *hm, u64 kv_size) {
     return realloc_hm;
 }
 
-void hm_put(void *hm, void *key, u64 key_size, void *value, u64 value_size, u64 kv_size) {
+void hm_put(void *hm, void *key, u64 key_size, void *value, u64 kv_size) {
     u64 hash    = mob_hm_hasher(key, key_size, 1);
     u64 pos     = hash % mob_hm_slots(hm);
 
@@ -107,11 +112,11 @@ void hm_put(void *hm, void *key, u64 key_size, void *value, u64 value_size, u64 
         pos = (pos + 1) % mob_hm_slots(hm);
     }
 
-    printf("%lu %d\n", pos, key_size + value_size);
+    printf("%lu %d %d\n", pos, kv_size, kv_size - key_size);
     hm_take_slot(hm, pos);
     mob_hm_header(hm)->taken = mob_hm_taken(hm) + 1;
     TestMap *out = (TestMap*)memcpy(hm + pos * kv_size, key, key_size);
-    memcpy(hm + pos * kv_size + key_size, value, value_size);
+    memcpy(hm + pos * kv_size + key_size, value + key_size, kv_size - key_size);
 
     printf("%p %d %d\n", out, out->val, out->key);
 }

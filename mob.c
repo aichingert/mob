@@ -274,6 +274,7 @@ s32 main(s32 argc, const char **argv, char **environ) {
     s32 key = -1;
     char a = 'C';
     mob_hm_put(&mob, map, key, values);
+    mob_hm_put_s(&mob, map, key, a);
     key = 100;
     a = 'B';
     mob_hm_put(&mob, map, key, a);
