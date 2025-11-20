@@ -57,8 +57,11 @@ struct MobHmHeader {
                             ((hm) ? hm_is_slot_taken(hm, pos) : 1)
 
 // TODO: address of could be made with array decaying to ptr
+#define mob_hm_grow(arena, hm)      ((hm) = hm_maybe_grow(arena, (hm), sizeof(*(hm))))
 #define mob_hm_put(arena, hm, key, value)   \
-    ((hm) = hm_maybe_grow(arena, (hm), sizeof(*(hm))), hm_put((hm), &(key), sizeof((hm)->key)))
+                                    (mob_hm_grow(arena, hm), \
+                                     hm_put((hm), &(key), sizeof((hm)->key), &(value), sizeof((value)), sizeof(*(hm))))
+#define mob_hm_get(arena, hm, key)  (hm_get((hm), sizeof(*(hm)), &(key), sizeof((hm)->key)))
 
 bool hm_take_slot(void *hm, u64 pos) {
     if (hm_is_slot_taken(hm, pos)) return false;
@@ -96,19 +99,43 @@ void *hm_maybe_grow(Arena *arena, void *hm, u64 kv_size) {
     return realloc_hm;
 }
 
-void *hm_put(void *hm, void *key, u64 key_size) {
+void hm_put(void *hm, void *key, u64 key_size, void *value, u64 value_size, u64 kv_size) {
     u64 hash    = mob_hm_hasher(key, key_size, 1);
     u64 pos     = hash % mob_hm_slots(hm);
 
     while (hm_is_slot_taken(hm, pos)) {
-        printf("%lu\n", pos);
         pos = (pos + 1) % mob_hm_slots(hm);
     }
 
-    printf("%lu %lu\n", mob_hm_slots(hm), hash);
-    printf("%b %lu\n", hm_is_slot_taken(hm, 200), hash);
+    printf("%lu %d\n", pos, key_size + value_size);
+    hm_take_slot(hm, pos);
+    mob_hm_header(hm)->taken = mob_hm_taken(hm) + 1;
+    TestMap *out = (TestMap*)memcpy(hm + pos * kv_size, key, key_size);
+    memcpy(hm + pos * kv_size + key_size, value, value_size);
 
-    return hm;
+    printf("%p %d %d\n", out, out->val, out->key);
+}
+
+void *hm_get(void *hm, u64 kv_size, void *key, u64 key_size) {
+    if (hm == NULL) {
+        return hm;
+    }
+
+    u64 hash    = mob_hm_hasher(key, key_size, 1);
+    u64 pos     = hash % mob_hm_slots(hm);
+
+    while (hm_is_slot_taken(hm, pos)) {
+        printf("%lu kv_size:%d\n", pos, kv_size);
+        TestMap *out = (TestMap*)(hm + pos * kv_size);
+        printf("%p %d %d\n", out, out->key, out->val);
+        if (memeql(hm + pos * kv_size, key_size, key, key_size)) {
+            return hm + pos * kv_size;
+        }
+        printf("no match\n");
+        pos += 1;
+    }
+
+    return hm + pos * kv_size;
 }
 
 // NOTE: http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param

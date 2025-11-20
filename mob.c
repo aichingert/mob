@@ -254,6 +254,7 @@ struct TestMap {
     s32 key;
 
     u8 val;
+    u32 file_size;
 };
 
 s32 main(s32 argc, const char **argv, char **environ) {
@@ -269,8 +270,19 @@ s32 main(s32 argc, const char **argv, char **environ) {
     u64 mod = 4096;
 
     TestMap *map = NULL;
-    int key = -1;
-    mob_hm_put(&mob, map, key, 'A');
+    TestMap values = { .val = 10, .file_size = 4000 };
+    s32 key = -1;
+    char a = 'C';
+    mob_hm_put(&mob, map, key, values);
+    key = 100;
+    a = 'B';
+    mob_hm_put(&mob, map, key, a);
+    key = -1;
+    TestMap *res = mob_hm_get(&mob, map, key);
+
+    printf("---------------\n");
+    printf("OUT: %d %d - %u\n", res->key, res->val, res->file_size);
+    printf("---------------\n");
 
     printf("%lu - %lu\n", mob_hm_hasher(s.val, 1, s.len) % mod, mob_hm_hasher(s1.val, 1, s1.len) % mod);
 
