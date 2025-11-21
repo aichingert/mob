@@ -62,9 +62,6 @@ struct MobHmHeader {
 #define mob_hm_put(arena, hm, key, value) \
         (mob_hm_grow(arena, hm), \
         hm_put((hm), &(key), sizeof((hm)->key), &(value), sizeof(*(hm))))
-#define mob_hm_put_s(arena, hm, key, s_value) \
-        (mob_hm_grow(arena, hm), \
-        hm_put((hm), &(key), sizeof((hm)->key), &(s_value) - sizeof((hm)->key), sizeof(*(hm))))
 #define mob_hm_get(arena, hm, key) \
         (hm_get((hm), sizeof(*(hm)), &(key), sizeof((hm)->key)))
 
