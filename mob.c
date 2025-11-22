@@ -234,7 +234,7 @@ void append_to_module(Arena *app, Module *module, Token *toks) {
     (void)app;
     (void)module;
 
-    for (u64 i = 0; i < mob_array_len(toks); i++) {
+    for (u64 i = 0; i < array_len(toks); i++) {
 
     }
 
@@ -273,16 +273,17 @@ s32 main(s32 argc, const char **argv, char **environ) {
     TestMap values = { .val = 10, .file_size = 4000 };
     s32 key = -1;
     char a = 'C';
-    mob_hm_put(&mob, map, key, values);
-    mob_hm_put_s(&mob, map, key, a);
+    hm_put(&mob, map, key, values);
     key = 100;
     a = 'B';
-    mob_hm_put(&mob, map, key, a);
-    key = -1;
-    TestMap *res = mob_hm_get(&mob, map, key);
+    hm_put(&mob, map, key, a);
+    TestMap *r = hm_rem(&mob, map, key);
+    key = 2;
+    TestMap *res = hm_get(&mob, map, key);
 
     printf("---------------\n");
-    printf("OUT: %d %d - %u\n", res->key, res->val, res->file_size);
+    printf("OUT: %p\n", res);
+    //printf("OUT: %d %d - %u\n", res->key, res->val, res->file_size);
     printf("---------------\n");
 
     printf("%lu - %lu\n", mob_hm_hasher(s.val, 1, s.len) % mod, mob_hm_hasher(s1.val, 1, s1.len) % mod);

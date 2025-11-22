@@ -61,13 +61,13 @@ String str_concat(Arena *arena, String *strs) {
     u64 len = 0;
     u64 pos = 0;
 
-    for (u64 i = 0; i < mob_array_len(strs); i++) {
+    for (u64 i = 0; i < array_len(strs); i++) {
         len += strs[i].len;
     }
 
     u8 *mem = alloc(arena, u8, len);
 
-    for (u64 i = 0; i < mob_array_len(strs); i++) {
+    for (u64 i = 0; i < array_len(strs); i++) {
         for (u64 j = 0; j < strs[i].len; j++) {
             mem[j + pos] = strs[i].val[j];
         }
@@ -88,9 +88,9 @@ String str_concat(Arena *arena, String *strs) {
 #define sb_push_str(arena, sb, str) (array_grow((arena), (sb), (str).len), mob_sb_push_str((sb), (str)))
 
 void mob_sb_push_str(StringBuilder *sb, String str) {
-    assert(mob_array_cap(sb) >= mob_array_len(sb) + str.len, S("string builder does not have enough cap"));
+    assert(array_cap(sb) >= array_len(sb) + str.len, S("string builder does not have enough cap"));
 
-    memcpy(sb + mob_array_len(sb), str.val, str.len);
-    mob_array_header(sb)->len += str.len;
+    memcpy(sb + array_len(sb), str.val, str.len);
+    array_header(sb)->len += str.len;
 }
 
