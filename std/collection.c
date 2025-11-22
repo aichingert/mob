@@ -77,10 +77,9 @@ bool mob_hm_take_slot(void *hm, u64 pos) {
 }
 
 void mob_hm_free_slot(void *hm, u64 pos) {
-    u64 all_ones = ((1UL << 63) - 1) | (1UL << 63);
     u64 arr_idx = pos >> 6;
     u64 bin_idx = 1UL << (pos % 64);
-    hm_header(hm)->used[arr_idx] &= (all_ones ^ bin_idx);
+    hm_header(hm)->used[arr_idx] &= ((~0UL) ^ bin_idx);
 }
 
 bool mob_hm_is_slot_taken(void *hm, u64 pos) {
