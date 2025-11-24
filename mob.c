@@ -271,20 +271,19 @@ s32 main(s32 argc, const char **argv, char **environ) {
 
     TestMap *map = NULL;
     TestMap values = { .val = 10, .file_size = 4000 };
-    s32 key = -1;
-    char a = 'C';
-    hm_put(&mob, map, key, values);
-    key = 100;
-    a = 'B';
-    hm_put(&mob, map, key, a);
-    TestMap *r = hm_rem(&mob, map, key);
-    key = 2;
-    TestMap *res = hm_get(&mob, map, key);
 
-    printf("---------------\n");
-    printf("OUT: %p\n", res);
-    //printf("OUT: %d %d - %u\n", res->key, res->val, res->file_size);
-    printf("---------------\n");
+    for (s32 k = 0; k < 515; k++) {
+        values.file_size = k;
+        hm_put(&mob, map, k, values);
+    }
+
+    for (s32 k = 0; k < 515; k++) {
+        TestMap *f = hm_get(map, k);
+        assert(f != NULL, S("HASHMAP imple wrong"));
+        printf("%lu - %lu\n", f->file_size, k);
+        assert(f->file_size == k, S("HASHMAP imple wrong"));
+
+    }
 
     printf("%lu - %lu\n", mob_hm_hasher(s.val, 1, s.len) % mod, mob_hm_hasher(s1.val, 1, s1.len) % mod);
 

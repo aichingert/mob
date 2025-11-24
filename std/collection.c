@@ -58,37 +58,38 @@ struct MobHmHeader {
 
 // TODO: address of could be made with array decaying to ptr
 #define hm_grow(arena, hm) \
-        ((hm) = mob_hm_maybe_grow(arena, (hm), sizeof(*(hm))))
-#define hm_put(arena, hm, key, value) \
+        ((hm) = mob_hm_maybe_grow(arena, (hm), sizeof((hm)->key), sizeof(*(hm))))
+#define hm_put(arena, hm, hm_key, value) \
         (hm_grow(arena, hm), \
-        mob_hm_put((hm), &(key), sizeof((hm)->key), &(value), sizeof(*(hm))))
-#define hm_get(arena, hm, key) \
-        (mob_hm_get((hm), sizeof(*(hm)), &(key), sizeof((hm)->key)))
-#define hm_rem(arena, hm, key) \
-        (mob_hm_rem((hm), sizeof(*(hm)), &(key), sizeof((hm)->key)))
+        mob_hm_put((hm), &(hm_key), sizeof((hm)->key), &(value), sizeof(*(hm))))
+#define hm_get(hm, hm_key) \
+        (mob_hm_get((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))
+#define hm_rem(arena, hm, hm_key) \
+        (mob_hm_rem((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))
 
 bool mob_hm_take_slot(void *hm, u64 pos) {
     if (hm_is_slot_taken(hm, pos)) return false;
 
     u64 arr_idx = pos >> 6;
-    u64 bin_idx = 1UL << (pos % 64);
-    hm_header(hm)->used[arr_idx] |= hm_header(hm)->used[arr_idx] | bin_idx;
+    u64 bin_idx = pos % 64 == 0 ? 0 : 1UL << (pos % 64);
+    hm_header(hm)->used[arr_idx] |= bin_idx;
     return true; 
 }
 
 void mob_hm_free_slot(void *hm, u64 pos) {
+    u64 all_ones = ~0;
     u64 arr_idx = pos >> 6;
-    u64 bin_idx = 1UL << (pos % 64);
-    hm_header(hm)->used[arr_idx] &= ((~0UL) ^ bin_idx);
+    u64 bin_idx = pos % 64 == 0 ? 0 : 1UL << (pos % 64);
+    hm_header(hm)->used[arr_idx] &= (all_ones ^ bin_idx);
 }
 
 bool mob_hm_is_slot_taken(void *hm, u64 pos) {
     u64 arr_idx = pos >> 6;
-    u64 bin_idx = 1 << (pos % 64);
+    u64 bin_idx = pos % 64 == 0 ? 0 : 1UL << (pos % 64);
     return (hm_header(hm)->used[arr_idx] & bin_idx) == bin_idx;
 }
 
-void *mob_hm_maybe_grow(Arena *arena, void *hm, u64 kv_size) {
+void *mob_hm_maybe_grow(Arena *arena, void *hm, u64 key_size, u64 kv_size) {
     if (hm_slots(hm) > hm_taken(hm) * 2) {
         return hm;
     }
@@ -103,9 +104,35 @@ void *mob_hm_maybe_grow(Arena *arena, void *hm, u64 kv_size) {
     hm_header(realloc_hm)->slots    = size;
     hm_header(realloc_hm)->used     = used_ptr;
 
-    // TODO: copy old data
-    // use bit mask to find
-    // values
+    u64 offset = 0;
+    for (u64 i = 0; i < hm_slots(hm) >> 6; i++) {
+        u64 slots = hm_header(hm)->used[i];
+        u64 index = offset;
+
+        while (slots) {
+            while ((slots & 1) == 0) {
+                index += 1;
+                slots >>= 1;
+            }
+            // NOTE: bit scan forward
+            //u64 next_bit = __builtin_ctz(slots) + 1;
+            //index += next_bit;
+
+            void *key   = hm + index * kv_size;
+            void *value = hm + index * kv_size + key_size;
+
+            TestMap *l = key;
+
+            mob_hm_put(realloc_hm, key, key_size, value, kv_size);
+
+            //slots >>= next_bit;
+            slots >>= 1;
+            index += 1;
+        }
+
+        offset += 64;
+    }
+
     return realloc_hm;
 }
 
@@ -119,6 +146,7 @@ void mob_hm_put(void *hm, void *key, u64 key_size, void *value, u64 kv_size) {
 
     hm_take_slot(hm, pos);
     hm_header(hm)->taken = hm_taken(hm) + 1;
+    memcpy(hm + pos * kv_size, key, key_size);
     memcpy(hm + pos * kv_size + key_size, value + key_size, kv_size - key_size);
 }
 
