@@ -51,19 +51,23 @@ struct MobHmHeader {
 #define hm_header(hm)   ((MobHmHeader*)((void*)(hm) - sizeof(MobHmHeader)))
 #define hm_slots(hm)    ((hm) ? hm_header(hm)->slots : 0)
 #define hm_taken(hm)    ((hm) ? hm_header(hm)->taken : 0)
+
 #define hm_take_slot(hm, pos) \
-                            ((hm) ? mob_hm_take_slot(hm, pos) : 1)
+                        ((hm) ? mob_hm_take_slot(hm, pos) : 0)
 #define hm_is_slot_taken(hm, pos) \
-                            ((hm) ? mob_hm_is_slot_taken(hm, pos) : 1)
+                        ((hm) ? mob_hm_is_slot_taken(hm, pos) : 0)
 
 // TODO: address of could be made with array decaying to ptr
 #define hm_grow(arena, hm) \
         ((hm) = mob_hm_maybe_grow(arena, (hm), sizeof((hm)->key), sizeof(*(hm))))
-#define hm_put(arena, hm, hm_key, value) \
+
+#define hm_put(arena, hm, hm_key, hm_value) \
         (hm_grow(arena, hm), \
-        mob_hm_put((hm), &(hm_key), sizeof((hm)->key), &(value), sizeof(*(hm))))
+        mob_hm_put((hm), &(hm_key), sizeof((hm)->key), &(hm_value), sizeof(*(hm))))
+
 #define hm_get(hm, hm_key) \
         (mob_hm_get((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))
+
 #define hm_rem(arena, hm, hm_key) \
         (mob_hm_rem((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))
 
@@ -95,6 +99,7 @@ void *mob_hm_maybe_grow(Arena *arena, void *hm, u64 key_size, u64 kv_size) {
     }
 
     u64 size        = MAX(hm_slots(hm) * 2, 1024);
+    // NOTE: this is 8 since we increase the pointer by single bytes
     u64 used_len    = size / 8;
     u64 alloc_len   = sizeof(MobHmHeader) + used_len + kv_size * size;
     u8 *realloc_hm  = alloc(arena, u8, alloc_len, true);
@@ -110,22 +115,13 @@ void *mob_hm_maybe_grow(Arena *arena, void *hm, u64 key_size, u64 kv_size) {
         u64 index = offset;
 
         while (slots) {
-            while ((slots & 1) == 0) {
-                index += 1;
-                slots >>= 1;
-            }
-            // NOTE: bit scan forward
-            //u64 next_bit = __builtin_ctz(slots) + 1;
-            //index += next_bit;
+            u64 next = __builtin_bit_scan_forward(slots);
+            index +=  next;
+            slots >>= next;
 
-            void *key   = hm + index * kv_size;
-            void *value = hm + index * kv_size + key_size;
+            void *item = hm + index * kv_size;
+            mob_hm_put(realloc_hm, item, key_size, item, kv_size);
 
-            TestMap *l = key;
-
-            mob_hm_put(realloc_hm, key, key_size, value, kv_size);
-
-            //slots >>= next_bit;
             slots >>= 1;
             index += 1;
         }
@@ -140,7 +136,8 @@ void mob_hm_put(void *hm, void *key, u64 key_size, void *value, u64 kv_size) {
     u64 hash    = mob_hm_hasher(key, key_size, 1);
     u64 pos     = hash % hm_slots(hm);
 
-    while (hm_is_slot_taken(hm, pos)) {
+    while (hm_is_slot_taken(hm, pos) 
+        && !memeql(hm + pos * kv_size, key_size, key, key_size)) {
         pos = (pos + 1) % hm_slots(hm);
     }
 
@@ -148,6 +145,24 @@ void mob_hm_put(void *hm, void *key, u64 key_size, void *value, u64 kv_size) {
     hm_header(hm)->taken = hm_taken(hm) + 1;
     memcpy(hm + pos * kv_size, key, key_size);
     memcpy(hm + pos * kv_size + key_size, value + key_size, kv_size - key_size);
+}
+
+void *mob_hm_get(void *hm, u64 kv_size, void *key, u64 key_size) {
+    if (hm == NULL) {
+        return hm;
+    }
+
+    u64 hash    = mob_hm_hasher(key, key_size, 1);
+    u64 pos     = hash % hm_slots(hm);
+
+    while (hm_is_slot_taken(hm, pos)) {
+        if (memeql(hm + pos * kv_size, key_size, key, key_size)) {
+            return hm + pos * kv_size;
+        }
+        pos += 1;
+    }
+
+    return NULL;
 }
 
 // TODO: allcoate returning struct so it does not 
@@ -176,24 +191,6 @@ void *mob_hm_rem(void *hm, u64 kv_size, void *key, u64 key_size) {
     }
 
     return ret;
-}
-
-void *mob_hm_get(void *hm, u64 kv_size, void *key, u64 key_size) {
-    if (hm == NULL) {
-        return hm;
-    }
-
-    u64 hash    = mob_hm_hasher(key, key_size, 1);
-    u64 pos     = hash % hm_slots(hm);
-
-    while (hm_is_slot_taken(hm, pos)) {
-        if (memeql(hm + pos * kv_size, key_size, key, key_size)) {
-            return hm + pos * kv_size;
-        }
-        pos += 1;
-    }
-
-    return NULL;
 }
 
 // NOTE: http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param

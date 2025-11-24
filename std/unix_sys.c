@@ -9,6 +9,19 @@
 #define SYS_CALL_SENDTO     44
 #define SYS_CALL_EXIT       60
 
+u64 __builtin_bit_scan_forward(u64 number) {
+    u64 result = 0;
+
+    __asm__ volatile (
+            "   bsf %%rax, %[asm_number]\n"
+            :   "=r" (result)
+            :   [asm_number]        "r"(number)
+            :   "%rax", "memory"
+    );
+
+    return result;
+}
+
 s64 sys_read(s32 fd, void *buf, u64 count) {
     s64 result = 0;
 

@@ -250,13 +250,6 @@ void append_to_module(Arena *app, Module *module, Token *toks) {
 // get the positives of multithread
 // builds
 
-struct TestMap {
-    s32 key;
-
-    u8 val;
-    u32 file_size;
-};
-
 s32 main(s32 argc, const char **argv, char **environ) {
     // TODO: maybe add flags
     (void)argc;
@@ -265,27 +258,6 @@ s32 main(s32 argc, const char **argv, char **environ) {
     Arena mob = {0};
     arena_init(&mob, 2 << 20);
 
-    String s = S("hello, world\n");
-    String s1 = S("hello,world\n");
-    u64 mod = 4096;
-
-    TestMap *map = NULL;
-    TestMap values = { .val = 10, .file_size = 4000 };
-
-    for (s32 k = 0; k < 515; k++) {
-        values.file_size = k;
-        hm_put(&mob, map, k, values);
-    }
-
-    for (s32 k = 0; k < 515; k++) {
-        TestMap *f = hm_get(map, k);
-        assert(f != NULL, S("HASHMAP imple wrong"));
-        printf("%lu - %lu\n", f->file_size, k);
-        assert(f->file_size == k, S("HASHMAP imple wrong"));
-
-    }
-
-    printf("%lu - %lu\n", mob_hm_hasher(s.val, 1, s.len) % mod, mob_hm_hasher(s1.val, 1, s1.len) % mod);
 
     Module module = {0};
 
