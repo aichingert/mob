@@ -1,3 +1,5 @@
+// TODO: implement thread safe collections
+
 #define mob_static_array_len(array) (sizeof((array)) / sizeof((array[0])))
 
 // usage:
@@ -135,14 +137,21 @@ void *mob_hm_maybe_grow(Arena *arena, void *hm, u64 key_size, u64 kv_size) {
 void mob_hm_put(void *hm, void *key, u64 key_size, void *value, u64 kv_size) {
     u64 hash    = mob_hm_hasher(key, key_size, 1);
     u64 pos     = hash % hm_slots(hm);
+    bool is_overwrite = false;
 
-    while (hm_is_slot_taken(hm, pos) 
-        && !memeql(hm + pos * kv_size, key_size, key, key_size)) {
+    while (hm_is_slot_taken(hm, pos)) {
+        if (memeql(hm + pos * kv_size, key_size, key, key_size)) {
+            is_overwrite = true;
+            break;
+        }
         pos = (pos + 1) % hm_slots(hm);
     }
 
-    hm_take_slot(hm, pos);
-    hm_header(hm)->taken = hm_taken(hm) + 1;
+    if (!is_overwrite) {
+        hm_take_slot(hm, pos);
+        hm_header(hm)->taken = hm_taken(hm) + 1;
+    }
+
     memcpy(hm + pos * kv_size, key, key_size);
     memcpy(hm + pos * kv_size + key_size, value + key_size, kv_size - key_size);
 }

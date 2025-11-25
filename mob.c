@@ -15,261 +15,107 @@ static const String PATHS[] = {
 };
 static const u32    PATH_LEN = mob_static_array_len(PATHS);
 
-#define CMP_STR(str, src, src_len) memeql(u8 ## str, sizeof(str) - 1, src, src_len)
+#define CMP_TO_STRING(slice, string, off) \
+    memeql(u8 ## slice, sizeof(slice) - 1, string.val + off, MIN(string.len - off, sizeof(slice) - 1))
 
-enum TokenType {
-    T_ENUM          = 0,
-    T_STRUCT        = 1,
-    T_TYPEDEF       = 2,
-    T_IDENT         = 3,
-    T_NUMBER        = 4,
+struct Plex {
+    String ident;
 
-    C_IF            = 20,
-    C_IFDEF         = 21,
-    C_IFNDEF        = 22,
-    C_ELSE          = 23,
-    C_ELIF          = 24,
-    C_ENDIF         = 25,
-    C_ERROR         = 27,
-    C_PRAGMA        = 28,
-    C_DEFINE        = 29,
-    C_INCLUDE       = 30,
-    C_BODY          = 31,
-
-    TT_L_BRACE      = 40,
-    TT_R_BRACE      = 41,
-    TT_L_PAREN      = 42,
-    TT_R_PAREN      = 43,
-    TT_SEMICOLON    = 47,
-    TT_BACKSLASH    = 48,
-
-    M_PRIORITY_T    = 60,
-
-    R_EOF           = 80,
 };
+struct Func {
 
-struct Token {
-    u32 beg;
-    u32 line;
-    TokenType type;
 };
-
 struct Module {
 
-    StringBuilder m_includes;
 };
 
-bool is_identifier_start(u8 character) {
+bool is_ident_start(u8 character) {
     return (character >= 'a' && character <= 'z')
         || (character >= 'A' && character <= 'Z');
 }
 
-bool is_identifier(u8 character) {
-    return is_identifier_start(character)
-        || character == '_'
+bool is_ident(u8 character) {
+    return (is_ident_start(character))
+        || (character == '_')
         || (character >= '0' && character <= '9');
 }
 
-u32 read_identifier(u32 *pos, String source) {
-    u32 beg = *pos;
-    while (*pos < source.len && is_identifier(source.val[*pos])) {
-        *pos += 1;
-    }
-    return *pos - beg;
-}
-
-bool read_whitespace_and_newline(u32 *pos, u32 *line, String source) {
-    while (*pos < source.len && (source.val[*pos] == ' ' || source.val[*pos] == '\n')) {
-        if (source.val[*pos] == '\n') {
-            *line += 1;
-        }
-        *pos += 1;
-    }
-    return *pos < source.len;
-}
-
-bool read_until_newline_or_backslash(u32 *pos, u32 *line, String source) {
-    while (*pos < source.len && source.val[*pos] != '\n') {
-        if          (source.val[*pos] == '\n') {
-            *line += 1;
-        } else if   (source.val[*pos] == '\\') {
-            *pos += 1;
-
-            assert(
-                    read_whitespace_and_newline(pos, line, source),
-                    S("unexpected eof after backslash in macro"));
-            assert(
-                    source.val[*pos] == '\n',
-                    S("expected new line after backslash in macro"));
-        }
-
-        *pos += 1;
+bool read_ident(u32 *out_len, String source) {
+    if (*out_len < source.len && is_ident_start(source.val[*out_len])) {
+        *out_len += 1;
     }
 
-    return *pos < source.len;
-}
-
-bool read_until_either(u32 *pos, u32 *line, String source, String *options, u32 option_size) {
-    while (*pos < source.len) {
-        for (u32 i = 0; i < option_size; i++) {
-            String view = {
-                .val = source.val + *pos,
-                .len = source.len - *pos,
-            };
-
-            if (source.val[*pos] == '\n') {
-                *line += 1;
-            }
-            if (str_begins_with(view, options[i])) {
-                *pos += options[i].len;
-                return true;
-            }
-        }
-
-        *pos += 1;
+    while (*out_len < source.len && is_ident(source.val[*out_len])) {
+        *out_len += 1;
     }
 
-    return false;
+    return *out_len < source.len;
 }
 
-Token *tokenize(Arena *stack, String source) {
-    u32 pos = 0;
-    u32 line = 0;
-    Token *toks = NULL;
+bool skip_whitespace_and_new_line(u32 *out_len, String source) {
+    while (*out_len < source.len 
+        && (source.val[*out_len] == ' ' || source.val[*out_len] == '\n')) {
+        *out_len += 1;
+    }
 
-    while (pos < source.len) {
-        Token tok = { .beg = pos, .line = line, .type = C_INCLUDE };
+    return *out_len < source.len;
+}
 
-        if (is_identifier_start(source.val[pos])) {
-            u32 len = read_identifier(&pos, source);
+// TODO: think about handling globals....
+// how can they be modeled with this idea
+Module create_module_from_file(Arena *allocator, String file_name) {
+    printf("[INFO] reading file: `%s`\n", file_name.val);
 
-            if          (CMP_STR("typedef", source.val + pos - len, len)) {
-                tok.type = T_TYPEDEF;
-            } else if   (CMP_STR("struct", source.val + pos - len, len)) {
-                tok.type = T_STRUCT;
-            } else {
-                tok.type = T_IDENT;
-            }
+    u32 i = 0;
+    Module module = {0};
+    String source = file_read_as_string_alloc(allocator, file_name);
 
-            array_push(stack, toks, tok);
+    while (i < source.len) {
+        switch (source.val[i]) {
+            case 's':
+                Plex plx = {0};
+
+                if (!CMP_TO_STRING("struct ", source, i)) {
+                    break;
+                }
+                i += sizeof("struct"); // NOTE: using \0 as whitespace
+                assert(skip_whitespace_and_new_line(&i, source), S("unexpected eof after struct"));
+                u64 beg = i;
+                plx.ident.val = source.val;
+                plx.ident.len = i;
+                assert(read_ident(&i, source), S("invalid ident after struct"));
+                plx.ident.len = i - plx.ident.len;
+
+                // TODO: read remaining fields of struct
+                // maybe in hashset... not sure
+
+            continue;
+            case 't':
+                i += 1;
             continue;
         }
 
-        switch (source.val[pos]) {
-            case '(':
-                tok.type = TT_L_PAREN;
-            break;
-            case ')':
-                tok.type = TT_R_PAREN;
-            break;
-            case '{':
-                tok.type = TT_L_BRACE;
-            break;
-            case '}':
-                tok.type = TT_R_BRACE;
-            break;
-            case '#':
-                pos += 1;
-                u32 len = read_identifier(&pos, source) + 1;
-
-                if          (CMP_STR("#include", source.val + pos - len, len)) {
-                    assert(
-                        read_whitespace_and_newline(&pos, &line, source), 
-                        S("unexpected eof after include"));
-                    String end[] = {S("'"), S(">")};
-
-                    assert(
-                        (source.val[pos] == '"' || source.val[pos] == '<'),
-                        S("invalid include start expected '\"' or '<'"));
-                    assert(
-                        read_until_either(&pos, &line, source, end, mob_static_array_len(end)),
-                        S("include end not found"));
-                } else {
-                    // TODO: tokenize if preprocessor
-                    if   (CMP_STR("#define", source.val + pos - len, len)) {
-                        tok.type = C_DEFINE;
-                    } else if   (CMP_STR("#if", source.val + pos - len, len)) {
-                        tok.type = C_IF;
-                    } else if   (CMP_STR("#ifdef", source.val + pos - len, len)) {
-                        tok.type = C_IFDEF;
-                    } else if   (CMP_STR("#ifndef", source.val + pos - len, len)) {
-                        tok.type = C_IFNDEF;
-                    } else if   (CMP_STR("#elif", source.val + pos - len, len)) {
-                        tok.type = C_ELIF;
-                    } else if   (CMP_STR("#else", source.val + pos - len, len)) {
-                        tok.type = C_ELSE;
-                    } else if   (CMP_STR("#endif", source.val + pos - len, len)) {
-                        tok.type = C_ENDIF;
-                    } else if   (CMP_STR("#undef", source.val + pos - len, len)) {
-                        assert(false, S("cannot use undef with mob"));
-                    } else {
-                        printf("unexpected: '");
-                        for (u32 i = pos - len; i < pos; i++) {
-                            printf("%c", source.val[i]);
-                        }
-                        printf("'\n");
-                        assert(false, S("expected c preprocessor macro"));
-                    }
-
-                    assert(
-                        read_until_newline_or_backslash(&pos, &line, source), 
-                        S("unexpected eof in macro definition"));
-                }
-                pos -= 1;
-            break;
-            case '\n': line += 1; [[ fallthrough ]];
-            default: 
-                pos += 1;
-                continue;
-        }
-
-        pos += 1;
-        array_push(stack, toks, tok);
+        i += 1;
     }
 
-    return toks;
+    return module;
 }
-
-void append_to_module(Arena *app, Module *module, Token *toks) {
-    (void)app;
-    (void)module;
-
-    for (u64 i = 0; i < array_len(toks); i++) {
-
-    }
-
-}
-
-// NOTE: implementation decided
-// this preprocessor is just a 
-// type finder and will put all 
-// function definitions on top
-// but lets the single files be 
-// and just includes them as the
-// final project therefore you
-// get the positives of multithread
-// builds
 
 s32 main(s32 argc, const char **argv, char **environ) {
     // TODO: maybe add flags
     (void)argc;
     (void)argv;
     ENV = environ;
-    Arena mob = {0};
-    arena_init(&mob, 2 << 20);
-
-
-    Module module = {0};
+    Arena allocator = {0};
+    arena_init(&allocator, 2 << 24);
 
     for (u32 i = 0; i < PATH_LEN; i++) {
-        printf("[INFO] reading file: `%s`\n", PATHS[i].val);
-
-        String vals = file_read_as_string_alloc(&mob, PATHS[i]);
-        Token *toks = tokenize(&mob, vals);
-        append_to_module(&mob, &module, toks);
+        // NOTE: used to be able to distribute 
+        // module creation across multiple threads
+        Module mod = create_module_from_file(&allocator, PATHS[i]);
     }
 
-    arena_deinit(&mob);
+    arena_deinit(&allocator);
     return 0;
 }
 
