@@ -1,6 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define SET_FN_PTR(name, type) struct { type (*name)(type, type); }
+
+int add(int a, int b) {
+    return a + b;
+}
+
+struct A {
+    struct {
+        int c;
+        int d;
+    };
+
+    union {
+        int a;
+        char b;
+    };
+
+    SET_FN_PTR(is_eq, Data);
+    int (*f)(int, int);
+};
+
 struct Data {
     int value;
     int place;

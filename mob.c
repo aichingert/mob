@@ -15,54 +15,127 @@ static const String PATHS[] = {
 };
 static const u32    PATH_LEN = mob_static_array_len(PATHS);
 
-#define CMP_TO_STRING(slice, string, off) \
+#define IS_STRING_EQL(string, slice)        \
+    memeql(string.val, string.len, u8 ## slice, sizeof(slice) - 1)
+#define CMP_TO_STRING(slice, string, off)   \
     memeql(u8 ## slice, sizeof(slice) - 1, string.val + off, MIN(string.len - off, sizeof(slice) - 1))
+
+enum FieldType {
+    MOB_IDENT,
+    MOB_MACRO,
+};
+
+struct MacroField {
+    String ident;
+    String *args;
+};
+
+struct Field {
+    FieldType field_type;
+
+    union {
+        String ident;
+        MacroField macro;
+    };
+};
+
+struct Range {
+    u32 beg;
+    u32 end;
+};
 
 struct Plex {
     String ident;
-
+    Field *fields;
 };
+
 struct Func {
 
 };
+
 struct Module {
 
+    Range *macros;
 };
 
 bool is_ident_start(u8 character) {
     return (character >= 'a' && character <= 'z')
-        || (character >= 'A' && character <= 'Z');
+        || (character >= 'A' && character <= 'Z')
+        || (character == '_');
 }
 
 bool is_ident(u8 character) {
-    return (is_ident_start(character))
-        || (character == '_')
-        || (character >= '0' && character <= '9');
+    return is_ident_start(character) || (character >= '0' && character <= '9');
 }
 
-bool read_ident(u32 *out_len, String source) {
-    if (*out_len < source.len && is_ident_start(source.val[*out_len])) {
-        *out_len += 1;
+bool read_ident(u32 *out_pos, String source) {
+    if (*out_pos < source.len && is_ident_start(source.val[*out_pos])) {
+        *out_pos += 1;
     }
 
-    while (*out_len < source.len && is_ident(source.val[*out_len])) {
-        *out_len += 1;
+    while (*out_pos < source.len && is_ident(source.val[*out_pos])) {
+        *out_pos += 1;
     }
 
-    return *out_len < source.len;
+    return *out_pos < source.len;
 }
 
-bool skip_whitespace_and_new_line(u32 *out_len, String source) {
-    while (*out_len < source.len 
-        && (source.val[*out_len] == ' ' || source.val[*out_len] == '\n')) {
-        *out_len += 1;
+bool skip_whitespace_and_new_line(u32 *out_pos, String source) {
+    while (*out_pos < source.len 
+        && (source.val[*out_pos] == ' ' || source.val[*out_pos] == '\n')) {
+        *out_pos += 1;
     }
 
-    return *out_len < source.len;
+    return *out_pos < source.len;
 }
 
-// TODO: think about handling globals....
-// how can they be modeled with this idea
+void parse_plex_fn_ptr(Arena *allocator, u32 *pos, String source, Plex *out_plex, String ret_typ) {
+    // TODO: implement
+}
+
+void parse_plex_fields(Arena *allocator, u32 *pos, String source, Plex *out_plex) {
+    while (*pos < source.len && source.val[*pos] != '}') {
+        assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof while reading struct fields"));
+
+        u32 beg = *pos;
+        assert(read_ident(pos, source), S("expected one of 'type', 'ident' or 'macro' in struct field start"));
+        String str = {
+            .val = source.val + beg,
+            .len = *pos - beg,
+        };
+        assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof while declaring struct"));
+
+        if          (IS_STRING_EQL(str, "struct") || IS_STRING_EQL(str, "union")) {
+            assert(source.val[*pos] == '{', S("expected '{' after nested struct or union"));
+            *pos += 1;
+
+            parse_plex_fields(allocator, pos, source, out_plex);
+        } else if   (source.val[*pos] == ';') {
+            Field mf = {
+                .field_type = MOB_MACRO,
+                .macro      = {
+                    .ident = str,
+                },
+            };
+
+            array_push(allocator, out_plex->fields, mf);
+        } else if   (source.val[*pos] == '(') {
+            if (*pos + 1 < source.len && source.val[*pos + 1] == '*') {
+                parse_plex_fn_ptr(allocator, pos, source, out_plex, str);
+            } else {
+                // NOTE: this a macro with arguments check
+            }
+        }
+
+
+        printf("%u %u\n", beg, *pos);
+
+        printf("%u - %c\n", *pos, source.val[*pos]);
+    }
+
+    assert(*pos < source.len, S("unexpected eof while reading struct fields"));
+}
+
 Module create_module_from_file(Arena *allocator, String file_name) {
     printf("[INFO] reading file: `%s`\n", file_name.val);
 
@@ -80,17 +153,23 @@ Module create_module_from_file(Arena *allocator, String file_name) {
                 }
                 i += sizeof("struct"); // NOTE: using \0 as whitespace
                 assert(skip_whitespace_and_new_line(&i, source), S("unexpected eof after struct"));
-                u64 beg = i;
-                plx.ident.val = source.val;
-                plx.ident.len = i;
-                assert(read_ident(&i, source), S("invalid ident after struct"));
+
+                plx.ident.val = source.val + i;
+                assert(read_ident(&i, source), S("missing ident after struct keyword"));
                 plx.ident.len = i - plx.ident.len;
 
-                // TODO: read remaining fields of struct
-                // maybe in hashset... not sure
+                assert(skip_whitespace_and_new_line(&i, source), S("unexpected eof after struct ident"));
+                assert(source.val[i] == '{', S("expected '{' after struct ident"));
+                i += 1;
+
+                parse_plex_fields(allocator, &i, source, &plx);
 
             continue;
             case 't':
+                i += 1;
+                continue;
+            case '#':
+                // TODO: extract macros
                 i += 1;
             continue;
         }
@@ -101,6 +180,10 @@ Module create_module_from_file(Arena *allocator, String file_name) {
     return module;
 }
 
+// TODO: add usage only file globals supported 
+// unless adding it to the context which will
+// be generated in the unit file so env does not
+// have to be declared by each program
 s32 main(s32 argc, const char **argv, char **environ) {
     // TODO: maybe add flags
     (void)argc;
