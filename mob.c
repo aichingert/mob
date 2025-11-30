@@ -25,7 +25,13 @@ enum FieldType {
     MOB_MACRO,
 };
 
-struct MacroField {
+struct C_MacroEmbedStruct {
+    String ident;
+    String *args;
+    String *fields;
+};
+
+struct C_MacroCall {
     String ident;
     String *args;
 };
@@ -34,8 +40,8 @@ struct Field {
     FieldType field_type;
 
     union {
-        String ident;
-        MacroField macro;
+        String      ident;
+        C_MacroCall call;
     };
 };
 
@@ -55,7 +61,7 @@ struct Func {
 
 struct Module {
 
-    Range *macros;
+    C_MacroEmbedStruct *macros;
 };
 
 bool is_ident_start(u8 character) {
@@ -89,10 +95,6 @@ bool skip_whitespace_and_new_line(u32 *out_pos, String source) {
     return *out_pos < source.len;
 }
 
-void parse_plex_fn_ptr(Arena *allocator, u32 *pos, String source, Plex *out_plex, String ret_typ) {
-    // TODO: implement
-}
-
 void parse_plex_fields(Arena *allocator, u32 *pos, String source, Plex *out_plex) {
     while (*pos < source.len && source.val[*pos] != '}') {
         assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof while reading struct fields"));
@@ -113,7 +115,7 @@ void parse_plex_fields(Arena *allocator, u32 *pos, String source, Plex *out_plex
         } else if   (source.val[*pos] == ';') {
             Field mf = {
                 .field_type = MOB_MACRO,
-                .macro      = {
+                .call       = {
                     .ident = str,
                 },
             };
@@ -121,19 +123,25 @@ void parse_plex_fields(Arena *allocator, u32 *pos, String source, Plex *out_plex
             array_push(allocator, out_plex->fields, mf);
         } else if   (source.val[*pos] == '(') {
             if (*pos + 1 < source.len && source.val[*pos + 1] == '*') {
-                parse_plex_fn_ptr(allocator, pos, source, out_plex, str);
+                // SKIP: function pointers that return 
+                // not fully known types are resolved later
+                for (; *pos < source.len && source.val[*pos] != ';'; (*pos)++);
+                assert(*pos + 1 <= source.len, S("unexpected eof after function pointer in struct"));
+                *pos += 1;
             } else {
                 // NOTE: this a macro with arguments check
             }
         }
 
 
-        printf("%u %u\n", beg, *pos);
+        printf("%u %u %u\n", beg, *pos, source.len);
 
         printf("%u - %c\n", *pos, source.val[*pos]);
     }
 
-    assert(*pos < source.len, S("unexpected eof while reading struct fields"));
+    *pos += 1;
+    assert(*pos + 1 < source.len && source.val[*pos] == ';', S("unexpected eof while reading struct fields"));
+    *pos += 1;
 }
 
 Module create_module_from_file(Arena *allocator, String file_name) {
