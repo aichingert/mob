@@ -20,3 +20,4 @@ typedef long long int           s64;
 typedef float                   f32;
 typedef double                  f64;
 
+#define NULL                    ((void *)0)

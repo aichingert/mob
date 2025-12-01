@@ -43,7 +43,7 @@ bool memeql(u8 *cmp, u64 cmp_len, u8 *buf, u64 buf_len) {
                 *size + sizeof(value) <= cap,               \
                 S("buffer out of bounds in mem_write"));    \
         assert(                                             \
-                ((size_t)buf + *size) % sizeof(value) == 0, \
+                ((u64)buf + *size) % sizeof(value) == 0,    \
                 S("invalid buffer alignment in mem_write"));\
         *(type*)(buf + *size) = value;                      \
         *size += sizeof(value);                             \
