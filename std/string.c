@@ -5,10 +5,62 @@ struct String {
 
 typedef u8 StringBuilder;
 
-#define S(value) ((String){                             \
-        .val = u8 ## value,                             \
-        .len = (sizeof(value) / sizeof(value[0]) - 1)   \
-        })                                              \
+#define S(value) ((String){                                     \
+        .val = u8 ## value,                                     \
+        .len = (sizeof(value) / sizeof(value[0]) - 1)           \
+        })
+
+// TODO: make this better
+#define mob_to_string_impl(type)                                \
+    String to_string_ ## type(Arena *allocator, type number) {  \
+        u64 rev = 0;                                            \
+        u64 len = 0;                                            \
+        bool sign = number < 0;                                 \
+        u64 num = ABS(number);                                  \
+                                                                \
+        while (num > 0) {                                       \
+            rev = rev * 10 + num % 10;                          \
+            num /= 10;                                          \
+            len += 1;                                           \
+        }                                                       \
+                                                                \
+        if (sign) {                                             \
+            len += 1;                                           \
+        }                                                       \
+                                                                \
+        String str = {                                          \
+            .val = alloc(allocator, u8, len),                   \
+            .len = len,                                         \
+        };                                                      \
+                                                                \
+        len = 0;                                                \
+        if (sign) {                                             \
+            str.val[len] = '-';                                 \
+            len += 1;                                           \
+        }                                                       \
+        while (rev > 0) {                                       \
+            str.val[len] = '0' + (rev % 10);                    \
+            rev /= 10;                                          \
+            len += 1;                                           \
+        }                                                       \
+        while (len < str.len) {                                 \
+            str.val[len] = '0';                                 \
+            len += 1;                                           \
+        }                                                       \
+                                                                \
+        return str;                                             \
+    }                                                           
+
+// TODO: probably wrong 
+// for edge cases
+mob_to_string_impl(u8);
+mob_to_string_impl(u16);
+mob_to_string_impl(u32);
+mob_to_string_impl(u64);
+mob_to_string_impl(s8);
+mob_to_string_impl(s16);
+mob_to_string_impl(s32);
+mob_to_string_impl(s64);
 
 // FIXME: if this stds error handling 
 // gets better this should be changed
