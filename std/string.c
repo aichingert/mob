@@ -65,14 +65,14 @@ mob_to_string_impl(s64);
 // FIXME: if this stds error handling 
 // gets better this should be changed
 // NOTE: exlusive end
-String copy_string(Arena *allocator, String str, u64 beg, u64 end) {
+String str_copy(Arena *allocator, String str, u64 beg, u64 end) {
     assert(str.len > end && beg <= end, S("range is not available in string"));
 
     u64 len = end - beg;
     u8 *mem = alloc(allocator, u8, len);
 
     for (u64 i = beg; i < end; i++) {
-        mem[i - beg] = str.val[i - beg];
+        mem[i - beg] = str.val[i];
     }
 
     return (String){ .val = mem, .len = len };

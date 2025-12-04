@@ -64,11 +64,18 @@ struct MobHmHeader {
         ((hm) = mob_hm_maybe_grow(arena, (hm), sizeof((hm)->key), sizeof(*(hm))))
 
 #define hm_put(arena, hm, hm_key, hm_value) \
-        (hm_grow(arena, hm), \
+        (hm_grow(arena, hm),    \
         mob_hm_put((hm), &(hm_key), sizeof((hm)->key), &(hm_value), sizeof(*(hm))))
 
-#define hm_get(hm, hm_key) \
+#define hm_put_ptr(arena, hm, hm_key, ptr_len, hm_value) \
+        (hm_grow(arena, hm),    \
+         mob_hm_put((hm), (hm_key), ptr_len, &(hm_value), sizeof(*(hm))))
+
+#define hm_get(hm, hm_key)      \
         (mob_hm_get((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))
+
+#define hm_get_ptr(hm, hm_key, ptr_len)  \
+        (mob_hm_get((hm), sizeof(*(hm)), (hm_key), ptr_len))
 
 #define hm_rem(arena, hm, hm_key) \
         (mob_hm_rem((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))

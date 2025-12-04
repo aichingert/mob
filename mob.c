@@ -20,48 +20,16 @@ static const u32    PATH_LEN = mob_static_array_len(PATHS);
 #define CMP_TO_STRING(slice, string, off)   \
     memeql(u8 ## slice, sizeof(slice) - 1, string.val + off, MIN(string.len - off, sizeof(slice) - 1))
 
-enum FieldType {
-    MOB_IDENT,
-    MOB_MACRO,
-};
+struct C_Macro {
+    u8 *key;
 
-struct C_MacroEmbedStruct {
-    String ident;
-    String *args;
-    String *fields;
-};
-
-struct C_MacroCall {
-    String ident;
-    String *args;
-};
-
-struct Field {
-    FieldType field_type;
-
-    union {
-        String      ident;
-        C_MacroCall call;
-    };
-};
-
-struct Range {
-    u32 beg;
-    u32 end;
-};
-
-struct Plex {
-    String ident;
-    Field *fields;
-};
-
-struct Func {
-
+    String args;
+    String data;
 };
 
 struct Module {
-
-    C_MacroEmbedStruct *macros;
+    String *includes;
+    C_Macro *defines;
 };
 
 bool is_ident_start(u8 character) {
@@ -95,91 +63,81 @@ bool skip_whitespace_and_new_line(u32 *out_pos, String source) {
     return *out_pos < source.len;
 }
 
-void parse_plex_fields(Arena *allocator, u32 *pos, String source, Plex *out_plex) {
-    while (*pos < source.len && source.val[*pos] != '}') {
-        assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof while reading struct fields"));
-
-        u32 beg = *pos;
-        assert(read_ident(pos, source), S("expected one of 'type', 'ident' or 'macro' in struct field start"));
-        String str = {
-            .val = source.val + beg,
-            .len = *pos - beg,
-        };
-        assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof while declaring struct"));
-
-        if          (IS_STRING_EQL(str, "struct") || IS_STRING_EQL(str, "union")) {
-            assert(source.val[*pos] == '{', S("expected '{' after nested struct or union"));
-            *pos += 1;
-
-            parse_plex_fields(allocator, pos, source, out_plex);
-        } else if   (source.val[*pos] == ';') {
-            Field mf = {
-                .field_type = MOB_MACRO,
-                .call       = {
-                    .ident = str,
-                },
-            };
-
-            array_push(allocator, out_plex->fields, mf);
-        } else if   (source.val[*pos] == '(') {
-            if (*pos + 1 < source.len && source.val[*pos + 1] == '*') {
-                // SKIP: function pointers that return 
-                // not fully known types are resolved later
-                for (; *pos < source.len && source.val[*pos] != ';'; (*pos)++);
-                assert(*pos + 1 <= source.len, S("unexpected eof after function pointer in struct"));
-                *pos += 1;
-            } else {
-                // NOTE: this a macro with arguments check
-            }
-        }
-
-
-        printf("%u %u %u\n", beg, *pos, source.len);
-
-        printf("%u - %c\n", *pos, source.val[*pos]);
-    }
-
-    *pos += 1;
-    assert(*pos + 1 < source.len && source.val[*pos] == ';', S("unexpected eof while reading struct fields"));
-    *pos += 1;
-}
-
 Module create_module_from_file(Arena *allocator, String file_name) {
+    // TODO: make logging optional
     printf("[INFO] reading file: `%s`\n", file_name.val);
 
-    u32 i = 0;
     Module module = {0};
+
+    u32 i = 0;
     String source = file_read_as_string_alloc(allocator, file_name);
 
     while (i < source.len) {
         switch (source.val[i]) {
             case 's':
-                Plex plx = {0};
-
-                if (!CMP_TO_STRING("struct ", source, i)) {
-                    break;
-                }
-                i += sizeof("struct"); // NOTE: using \0 as whitespace
-                assert(skip_whitespace_and_new_line(&i, source), S("unexpected eof after struct"));
-
-                plx.ident.val = source.val + i;
-                assert(read_ident(&i, source), S("missing ident after struct keyword"));
-                plx.ident.len = i - plx.ident.len;
-
-                assert(skip_whitespace_and_new_line(&i, source), S("unexpected eof after struct ident"));
-                assert(source.val[i] == '{', S("expected '{' after struct ident"));
-                i += 1;
-
-                parse_plex_fields(allocator, &i, source, &plx);
-
-            continue;
+            break;
             case 't':
-                i += 1;
-                continue;
+            break;
             case '#':
-                // TODO: extract macros
-                i += 1;
-            continue;
+                if          (CMP_TO_STRING("#include ", source, i)) {
+                    u64 beg = i;
+                    while (i < source.len && source.val[i] != '\n') {
+                        i += 1;
+                    }
+
+                    String include = str_copy(allocator, source, beg, i + 1);
+                    array_push(allocator, module.includes, include);
+                } else if   (CMP_TO_STRING("#define ", source, i)) {
+                    i += sizeof("#define");
+                    while (i < source.len && source.val[i] == ' ') {
+                        i += 1;
+                    }
+
+                    u64 beg = i;
+                    assert(read_ident(&i, source), S("failed to read define macro identifer"));
+                    i += 1;
+
+                    String ident = str_copy(allocator, source, beg, i);
+                    String args  = {0};
+                    while (i < source.len && source.val[i] == ' ') {
+                        i += 1;
+                    }
+
+                    if (i < source.len && source.val[i] == '(') {
+                        beg = i;
+                        u16 braces = 1;
+
+                        while (i < source.len && braces > 0) {
+                            if          (source.val[i] == '(') {
+                                braces += 1;
+                            } else if   (source.val[i] == ')') {
+                                braces -= 1;
+                            }
+
+                            i += 1;
+                        }
+
+                        args = str_copy(allocator, source, beg, i);
+                    }
+
+                    beg = 0;
+                    u32 bks = 0;
+                    while (i < source.len && (source.val[i] != '\n' || bks > 0)) {
+                        if          (source.val[i] == '\n') {
+                            bks -= 1;
+                        } else if   (source.val[i] == '\\') {
+                            bks += 1;
+                        }
+                        i += 1;
+                    }
+
+                    C_Macro define = {
+                        .args = args,
+                        .data = str_copy(allocator, source, beg, i + 1),
+                    };
+                    hm_put_ptr(allocator, module.defines, ident.val, ident.len, define);
+                }
+            break;
         }
 
         i += 1;
@@ -204,7 +162,16 @@ s32 main(s32 argc, const char **argv, char **environ) {
         // NOTE: used to be able to distribute 
         // module creation across multiple threads
         Module mod = create_module_from_file(&allocator, PATHS[i]);
+        printf("%d includes\n", array_len(mod.includes));
+        for (u32 i = 0; i < array_len(mod.includes); i++) {
+            for (u32 j = 0; j < mod.includes[i].len; j++) {
+                printf("%c", mod.includes[i].val[j]);
+            }
+        }
+        printf("\n");
     }
+
+    
 
     arena_deinit(&allocator);
     return 0;

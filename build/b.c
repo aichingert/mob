@@ -16,6 +16,8 @@ static const char *FLAGS[] = {
     "-ffreestanding",
     "-Wextra",
     "-Wall",
+    // TODO: remove this one
+    "-Wno-type-limits",
     //"-Wfloat-equal",
     //"-Wundef",
     //"-Wshadow",
