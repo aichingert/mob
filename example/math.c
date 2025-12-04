@@ -1,6 +1,11 @@
 #define MAX(a,b) (a) > (b) ? (a) : (b)
 #define MIN(a,b) (a) < (b) ? (a) : (b)
 
+typedef int s32;
+
+typedef struct A { s32 a } A;
+typedef struct A A;
+
 int add(int a, int b) {
     return a + b;
 }
