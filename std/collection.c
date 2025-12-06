@@ -15,6 +15,7 @@ struct MobArrayHeader {
 #define array_header(array) ((MobArrayHeader *)((void*)(array) - sizeof(MobArrayHeader)))
 #define array_len(array)    ((array) ? array_header(array)->len : 0)
 #define array_cap(array)    ((array) ? array_header(array)->cap : 0)
+#define array_clear(array)  (array_header(array)->len = 0)
 
 #define array_grow(arena, array, n) ((array) = mob_array_grow((arena), (array), sizeof *(array), (n)))
 #define array_push(arena, array, element)                   \
