@@ -66,7 +66,7 @@ mob_to_string_impl(s64);
 // gets better this should be changed
 // NOTE: exlusive end
 String str_copy(Arena *allocator, String str, u64 beg, u64 end) {
-    assert(str.len > end && beg <= end, S("range is not available in string"));
+    assert(str.len >= end && beg <= end, S("range is not available in string"));
 
     u64 len = end - beg;
     u8 *mem = alloc(allocator, u8, len);
