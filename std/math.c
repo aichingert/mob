@@ -1,6 +1,6 @@
 #define MAX(a, b)   ((a) > (b) ? (a) : (b))
 #define MIN(a, b)   ((a) < (b) ? (a) : (b))
-#define ABS(a)      ((a) > ((s64)0) ? (a) : (-a))
+#define ABS(a)      ((a) > ((s64)0) ? (a) : ((-(a))))
 
 f64 fabs(f64 a) {
     struct MOB_FLOAT_U64 {
