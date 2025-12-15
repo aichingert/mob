@@ -98,8 +98,8 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                 assert(skip_whitespace_and_new_line(&i, source), S("expected struct body but got eof"));
                 assert(source.val[i] == '{', S("expected opening brace after struct ident"));
                 u16 braces = 1;
-                i += 1;
                 beg = i;
+                i += 1;
 
                 while (i < source.len && braces > 0) {
                     if          (source.val[i] == '{') {
@@ -115,7 +115,6 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                     .name = name,
                     .data = str_copy(allocator, source, beg, i),
                 };
-
                 array_push(allocator, out_mod->structs, plex);
             break;
             case 't':
@@ -206,6 +205,28 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                     array_push(allocator, out_mod->defines, define);
                 }
             break;
+            case '(':
+                u32 tmp = i;
+
+                while (tmp < source.len && source.val[tmp] != ')') {
+                    tmp += 1;
+                }
+                skip_whitespace_and_new_line(&tmp, source);
+                if (tmp < source.len && source.val[tmp] == '{') {
+                    s64 pos = i;
+                    u8 spce = 0;
+
+                    while (pos > 0 && spce <= 1) {
+                        if (source.val[pos] == ' ') {
+                            spce += 1;
+                        }
+                        pos -= 1;
+                    }
+
+                    tmp = 0;
+                    // go back until two ident
+                }
+            break;
         }
 
         i += 1;
@@ -234,12 +255,26 @@ s32 main(s32 argc, const char **argv, char **environ) {
     Module module = {0};
     for (u32 i = 0; i < PATH_LEN; i++) {
         create_module_from_file(&allocator, PATHS[i], &module);
+    }
 
-        printf("%d includes\n", array_len(module.raw_copy));
-        for (u32 i = 0; i < array_len(module.raw_copy); i++) {
-            for (u32 j = 0; j < module.raw_copy[i].len; j++) {
-                printf("%c", module.raw_copy[i].val[j]);
-            }
+    printf("%d includes\n", array_len(module.raw_copy));
+    for (u32 i = 0; i < array_len(module.raw_copy); i++) {
+        for (u32 j = 0; j < module.raw_copy[i].len; j++) {
+            printf("%c", module.raw_copy[i].val[j]);
+        }
+        printf("\n");
+    }
+
+    printf("%d structs\n", array_len(module.structs));
+    for (u32 i = 0; i < array_len(module.structs); i++) {
+        printf("NAME: \n");
+        for (u32 j = 0; j < module.structs[i].name.len; j++) {
+            printf("%c", module.structs[i].name.val[j]);
+        }
+        printf("\n");
+        printf("DATA\n");
+        for (u32 j = 0; j < module.structs[i].data.len; j++) {
+            printf("%c", module.structs[i].data.val[j]);
         }
         printf("\n");
     }
