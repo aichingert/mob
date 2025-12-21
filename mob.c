@@ -206,24 +206,37 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                 }
             break;
             case '(':
-                u32 tmp = i;
+                u32 tmp = i + 1;
+                u32 brc = 1;
 
-                while (tmp < source.len && source.val[tmp] != ')') {
+                while (tmp < source.len && brc > 0) {
+                    if          (source.val[tmp] == '(') {
+                        brc += 1;
+                    } else if   (source.val[tmp] == ')') {
+                        brc -= 1;
+                    }
+
                     tmp += 1;
                 }
                 skip_whitespace_and_new_line(&tmp, source);
                 if (tmp < source.len && source.val[tmp] == '{') {
                     s64 pos = i;
-                    u8 spce = 0;
-
-                    while (pos > 0 && spce <= 1) {
-                        if (source.val[pos] == ' ') {
-                            spce += 1;
+                    u8 spnl = 0;
+                
+                    while (pos > 0 && spnl < 2) {
+                        if (source.val[pos] == ' ' || source.val[pos] == '\n') {
+                            spnl += 1;
                         }
                         pos -= 1;
                     }
 
-                    tmp = 0;
+                    printf("LOGGING =======\n");
+                    for (u32 idx = pos; idx < tmp; idx++) {
+                        printf("%c", source.val[idx]);
+                    }
+                    printf("\nLOGGING =======\n");
+
+                    //tmp = 0;
                     // go back until two ident
                 }
             break;
