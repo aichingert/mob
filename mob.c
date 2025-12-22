@@ -337,7 +337,6 @@ s32 main(s32 argc, const char **argv, char **environ) {
     }
 
     append_strings_with_nl(&allocator, module.incs, &unit);
-
     // TODO: do you need c keywords like short and char?
     for (u32 i = 0; i < array_len(module.typed); i++) {
         assert(
@@ -370,11 +369,18 @@ s32 main(s32 argc, const char **argv, char **environ) {
 
     append_strings_with_nl(&allocator, module.funcs, &unit);
 
+    for (u32 i = 0; i < PATH_LEN; i++) {
+        sb_push_str(&allocator, unit, S("#include \""));
+        sb_push_str(&allocator, unit, PATHS[i]);
+        sb_push_str(&allocator, unit, S("\"\n"));
+    }
+
     printf("\n>\n");
     for (u32 i = 0; i < array_len(unit); i++) {
         printf("%c", unit[i]);
     }
     printf("\n");
+
 
     arena_deinit(&allocator);
     return 0;
