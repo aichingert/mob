@@ -22,6 +22,8 @@ static bool is_log_enabled = false;
 #define CMP_TO_STRING(slice, string, off)   \
     memeql(u8 ## slice, sizeof(slice) - 1, string.val + off, MIN(string.len - off, sizeof(slice) - 1))
 
+#define MAX_IDENT_LEN 120
+
 struct C_Struct {
     String name;
     String data;
@@ -33,10 +35,16 @@ struct C_Macro {
     String data;
 };
 
-// TODO: use str_hm for 
-// structs and defines
+struct TodoBadStrHm {
+    u8 key[MAX_IDENT_LEN];
+};
+
+// TODO: use str_hm to
+// add struct or define
 struct Module {
-    String *raw_copy;
+    String *incs;
+    String *funcs;
+    String *typed;
     C_Macro *defines;
     C_Struct *structs;
 };
@@ -94,7 +102,7 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                 beg = i;
                 assert(read_ident(&i, source), S("failed to read struct ident"));
 
-                String name = str_copy(allocator, source, beg, i + 1);
+                String name = str_copy(allocator, source, beg, i);
                 assert(skip_whitespace_and_new_line(&i, source), S("expected struct body but got eof"));
                 assert(source.val[i] == '{', S("expected opening brace after struct ident"));
                 u16 braces = 1;
@@ -142,7 +150,7 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                 }
 
                 String c_typedef = str_copy(allocator, source, beg, i + 1);
-                array_push(allocator, out_mod->raw_copy, c_typedef);
+                array_push(allocator, out_mod->typed, c_typedef);
             break;
             case '#':
                 if          (CMP_TO_STRING("#include ", source, i)) {
@@ -152,7 +160,7 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                     }
 
                     String include = str_copy(allocator, source, beg, i);
-                    array_push(allocator, out_mod->raw_copy, include);
+                    array_push(allocator, out_mod->incs, include);
                 } else if   (CMP_TO_STRING("#define ", source, i)) {
                     i += sizeof("#define");
                     while (i < source.len && source.val[i] == ' ') {
@@ -218,26 +226,47 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
 
                     tmp += 1;
                 }
+
+                brc = tmp;
                 skip_whitespace_and_new_line(&tmp, source);
                 if (tmp < source.len && source.val[tmp] == '{') {
                     s64 pos = i;
                     u8 spnl = 0;
                 
-                    while (pos > 0 && spnl < 2) {
+                    while (pos > 0) {
                         if (source.val[pos] == ' ' || source.val[pos] == '\n') {
+                            if (spnl == 1) {
+                                pos += 1;
+                                break;
+                            }
                             spnl += 1;
                         }
                         pos -= 1;
                     }
 
-                    printf("LOGGING =======\n");
-                    for (u32 idx = pos; idx < tmp; idx++) {
-                        printf("%c", source.val[idx]);
+                    u32 len = (brc - pos) + 2;
+                    String header = {
+                        .val = alloc(allocator, u8, len),
+                        .len = len,
+                    };
+                    header.val[len - 1] = ';';
+                    for (u32 idx = pos; idx < brc; idx++) {
+                        header.val[idx - pos] = source.val[idx];
                     }
-                    printf("\nLOGGING =======\n");
 
-                    //tmp = 0;
-                    // go back until two ident
+                    array_push(allocator, out_mod->funcs, header);
+                    brc = 1;
+                    i = tmp + 1;
+
+                    while (i < source.len && brc > 0) {
+                        if          (source.val[i] == '{') {
+                            brc += 1;
+                        } else if   (source.val[i] == '}') {
+                            brc -= 1;
+                        }
+
+                        i += 1;
+                    }
                 }
             break;
         }
@@ -246,10 +275,36 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
     }
 }
 
-// TODO: add usage only file globals supported 
-// unless adding it to the context which will
-// be generated in the unit file so env does not
-// have to be declared by each program
+void append_strings_with_nl(Arena *allocator, String *strs, StringBuilder **file) {
+    for (u32 i = 0; i < array_len(strs); i++) {
+        sb_push_str(allocator, *file, strs[i]);
+        sb_push_char(allocator, *file, '\n');
+    }
+    sb_push_char(allocator, *file, '\n');
+}
+
+void resolve_type(
+        Arena *allocator, 
+        TodoBadStrHm **visited, 
+        Module *module, 
+        StringBuilder *output,
+        u32 index
+) {
+    TodoBadStrHm value = {0};
+    for (u32 i = 0; i < module->structs[index].name.len; i++) {
+        value.key[i] = module->structs[index].name.val[i];
+        printf("%cX", value.key[i]);
+    }
+    printf("\n");
+
+    if (hm_get(*visited, value.key)) {
+        printf("contained\n");
+        return;
+    } else {
+        printf("no miambre\n");
+    }
+}
+
 s32 main(s32 argc, const char **argv, char **environ) {
     ENV = environ;
 
@@ -257,7 +312,9 @@ s32 main(s32 argc, const char **argv, char **environ) {
         String logging_flag = S("--enable_log");
         String str_argument = from_c_string((char*)argv[1]);
 
-        if (memeql(logging_flag.val, logging_flag.len, str_argument.val, str_argument.len)) {
+        if (memeql(
+                    logging_flag.val, logging_flag.len, 
+                    str_argument.val, str_argument.len)) {
             is_log_enabled = true;
         }
     }
@@ -265,32 +322,59 @@ s32 main(s32 argc, const char **argv, char **environ) {
     Arena allocator = {0};
     arena_init(&allocator, 2 << 24);
 
+    TodoBadStrHm *visited = NULL;
+    TodoBadStrHm empty = {0};
+    u8 key[MAX_IDENT_LEN]; 
+    for (u32 i = 0; i < MAX_IDENT_LEN; i++) key[i] = 0;
+    hm_put(&allocator, visited, key, empty);
+
     Module module = {0};
+    StringBuilder *unit = NULL;
+    sb_push_str(&allocator, unit, S("GENERATED BY MOB\n================\n\n"));
+
     for (u32 i = 0; i < PATH_LEN; i++) {
         create_module_from_file(&allocator, PATHS[i], &module);
     }
 
-    printf("%d includes\n", array_len(module.raw_copy));
-    for (u32 i = 0; i < array_len(module.raw_copy); i++) {
-        for (u32 j = 0; j < module.raw_copy[i].len; j++) {
-            printf("%c", module.raw_copy[i].val[j]);
+    append_strings_with_nl(&allocator, module.incs, &unit);
+
+    // TODO: do you need c keywords like short and char?
+    for (u32 i = 0; i < array_len(module.typed); i++) {
+        assert(
+                module.typed[i].len < MAX_IDENT_LEN, 
+                S("typedef name was longer than allowed ident len")
+        );
+        sb_push_str(&allocator, unit, module.typed[i]);
+        sb_push_char(&allocator, unit, '\n');
+
+        for (u32 j = 0; j < MAX_IDENT_LEN; j++) key[j] = 0;
+
+        s32 pos = module.typed[i].len - 1;
+        while (pos > 0 && module.typed[i].val[pos] != ' ') {
+            pos -= 1;
         }
-        printf("\n");
+        pos += 1;
+
+        for (u32 j = pos; j < module.typed[i].len - 1; j++) {
+            key[j] = module.typed[i].val[j];
+        }
+        hm_put(&allocator, visited, key, empty);
+    }
+    sb_push_char(&allocator, unit, '\n');
+
+    // NOT the most optimal solution since I could 
+    // not make a hashmap for the structs but well
+    for (u32 i = 0; i < array_len(module.structs); i++) {
+        resolve_type(&allocator, &visited, &module, NULL, i);
     }
 
-    printf("%d structs\n", array_len(module.structs));
-    for (u32 i = 0; i < array_len(module.structs); i++) {
-        printf("NAME: \n");
-        for (u32 j = 0; j < module.structs[i].name.len; j++) {
-            printf("%c", module.structs[i].name.val[j]);
-        }
-        printf("\n");
-        printf("DATA\n");
-        for (u32 j = 0; j < module.structs[i].data.len; j++) {
-            printf("%c", module.structs[i].data.val[j]);
-        }
-        printf("\n");
+    append_strings_with_nl(&allocator, module.funcs, &unit);
+
+    printf("\n>\n");
+    for (u32 i = 0; i < array_len(unit); i++) {
+        printf("%c", unit[i]);
     }
+    printf("\n");
 
     arena_deinit(&allocator);
     return 0;

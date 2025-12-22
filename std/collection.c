@@ -44,6 +44,22 @@ void *mob_array_grow(Arena *arena, void *array, u64 arr_elem_size, u64 n) {
     return b;
 }
 
+
+// usage: 
+//
+// struct Visited {
+//     u32 key;
+//
+//     // ... values none possible
+// };
+//
+// ...
+// Visited *hm = NULL;
+// Visited empty = {0};
+// u32 key = 12;
+// hm_put(arena, hm, key, empty);
+// u8 is_contained = hm_get(hm, key) != NULL;
+// assert(is_contained, S("hm -> is borked"));
 struct MobHmHeader {
     // check if slot is available
     u64 *used;
@@ -62,10 +78,10 @@ struct MobHmHeader {
 
 // TODO: address of could be made with array decaying to ptr
 #define hm_grow(arena, hm) \
-        ((hm) = mob_hm_maybe_grow(arena, (hm), sizeof((hm)->key), sizeof(*(hm))))
+        ((hm) = mob_hm_maybe_grow((arena), (hm), sizeof((hm)->key), sizeof(*(hm))))
 
 #define hm_put(arena, hm, hm_key, hm_value) \
-        (hm_grow(arena, hm),    \
+        (hm_grow((arena), (hm)),            \
         mob_hm_put((hm), &(hm_key), sizeof((hm)->key), &(hm_value), sizeof(*(hm))))
 
 #define hm_get(hm, hm_key)      \
@@ -202,129 +218,6 @@ void *mob_hm_rem(void *hm, u64 kv_size, void *key, u64 key_size) {
 
     return ret;
 }
-
-// TODO: implement hashmap for string keys
-/*
-#define str_hm_grow(arena, hm) \
-        ((hm) = mob_hm_maybe_grow(arena, (hm), sizeof((hm)->key), sizeof(*(hm))))
-
-#define str_hm_put(arena, hm, hm_key, hm_value) \
-        (hm_grow(arena, hm),    \
-        mob_hm_put((hm), &(hm_key), sizeof((hm)->key), &(hm_value), sizeof(*(hm))))
-
-#define str_hm_get(hm, hm_key)      \
-        (mob_hm_get((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))
-
-#define str_hm_rem(arena, hm, hm_key) \
-        (mob_hm_rem((hm), sizeof(*(hm)), &(hm_key), sizeof((hm)->key)))
-
-void *mob_str_hm_maybe_grow(Arena *arena, void *hm, u64 value_size) {
-    if (hm_slots(hm) > hm_taken(hm) * 2) {
-        return hm;
-    }
-
-    u64 size        = MAX(hm_slots(hm) * 2, 1024);
-    // NOTE: this is 8 since we increase the pointer by single bytes
-    u64 used_len    = size / 8;
-    u64 alloc_len   = sizeof(MobHmHeader) + used_len + kv_size * size;
-    u8 *realloc_hm  = alloc(arena, u8, alloc_len, true);
-    u64 *used_ptr   = (u64*)realloc_hm;
-
-    realloc_hm      += used_len + sizeof(MobHmHeader);
-    hm_header(realloc_hm)->slots    = size;
-    hm_header(realloc_hm)->used     = used_ptr;
-
-    u64 offset = 0;
-    for (u64 i = 0; i < hm_slots(hm) >> 6; i++) {
-        u64 slots = hm_header(hm)->used[i];
-        u64 index = offset;
-
-        while (slots) {
-            u64 next = __builtin_bit_scan_forward(slots);
-            index +=  next;
-            slots >>= next;
-
-            void *item = hm + index * kv_size;
-            mob_hm_put(realloc_hm, item, key_size, item, kv_size);
-
-            slots >>= 1;
-            index += 1;
-        }
-
-        offset += 64;
-    }
-
-    return realloc_hm;
-}
-
-void mob_hm_put(void *hm, void *key, u64 key_size, void *value, u64 kv_size) {
-    u64 hash    = mob_hm_hasher(key, key_size, 1);
-    u64 pos     = hash % hm_slots(hm);
-    bool is_overwrite = false;
-
-    while (hm_is_slot_taken(hm, pos)) {
-        if (memeql(hm + pos * kv_size, key_size, key, key_size)) {
-            is_overwrite = true;
-            break;
-        }
-        pos = (pos + 1) % hm_slots(hm);
-    }
-
-    if (!is_overwrite) {
-        hm_take_slot(hm, pos);
-        hm_header(hm)->taken = hm_taken(hm) + 1;
-    }
-
-    memcpy(hm + pos * kv_size, key, key_size);
-    memcpy(hm + pos * kv_size + key_size, value + key_size, kv_size - key_size);
-}
-
-void *mob_hm_get(void *hm, u64 kv_size, void *key, u64 key_size) {
-    if (hm == NULL) {
-        return hm;
-    }
-
-    u64 hash    = mob_hm_hasher(key, key_size, 1);
-    u64 pos     = hash % hm_slots(hm);
-
-    while (hm_is_slot_taken(hm, pos)) {
-        if (memeql(hm + pos * kv_size, key_size, key, key_size)) {
-            return hm + pos * kv_size;
-        }
-        pos += 1;
-    }
-
-    return NULL;
-}
-
-// TODO: allcoate returning struct so it does not 
-// changed when implementation inserts it somewhere else
-void *mob_hm_rem(void *hm, u64 kv_size, void *key, u64 key_size) {
-    if (hm == NULL) {
-        return hm;
-    }
-
-    u64 hash    = mob_hm_hasher(key, key_size, 1);
-    u64 pos     = hash % hm_slots(hm);
-    void *ret   = NULL;
-
-    while (hm_is_slot_taken(hm, pos)) {
-        mob_hm_free_slot(hm, pos);
-
-        if (memeql(hm + pos * kv_size, key_size, key, key_size)) {
-            ret = hm + pos * kv_size;
-        } else {
-            u8 data[kv_size];
-            memcpy(data, hm + pos * kv_size, kv_size);
-            mob_hm_put(hm, key, key_size, data, kv_size);
-        }
-
-        pos = (pos + 1) % hm_slots(hm);
-    }
-
-    return ret;
-}
-*/
 
 // NOTE: http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param
 u64 mob_hm_hasher(void *key, u64 key_size, u64 key_len) {
