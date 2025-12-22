@@ -1,7 +1,11 @@
 # mob
 
-A simple c preprocessor to mitigate the time waste of having to deal with certain things in c.
+trying to tweak **C** to my liking by
 
+* removing `headers`
+* removing the need to order `functions` correctly
+* removing the need to order `structs` correctly (if impossible to sort better error message then c compiler since infinitly recursive structs are not allowed)
+* removing the need to `typedef` structs
 
-To note a few: `headers`, `function ordering`, `struct typedefing`, ...
+this list might change depending on how **I** feel
 
