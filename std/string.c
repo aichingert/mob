@@ -66,6 +66,7 @@ mob_to_string_impl(s64);
 // gets better this should be changed
 // NOTE: exlusive end
 String str_copy(Arena *allocator, String str, u64 beg, u64 end) {
+    printf("%lu | %lu | %lu\n", str.len, beg, end);
     assert(str.len >= end && beg <= end, S("range is not available in string"));
 
     u64 len = end - beg;

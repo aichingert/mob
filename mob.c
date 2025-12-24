@@ -12,6 +12,7 @@ static const String FLAGS[] = {
 static const String PATHS[] = {
     S("example/app.c"),
     S("example/math.c"),
+    S("std/types.c"),
 };
 static const u32    PATH_LEN = mob_static_array_len(PATHS);
 
@@ -23,6 +24,11 @@ static bool is_log_enabled = false;
     memeql(u8 ## slice, sizeof(slice) - 1, string.val + off, MIN(string.len - off, sizeof(slice) - 1))
 
 #define MAX_IDENT_LEN 120
+
+struct C_Typed {
+    String  raw_alias;
+    u32     dst_begin;
+};
 
 struct C_Struct {
     String name;
@@ -44,7 +50,7 @@ struct TodoBadStrHm {
 struct Module {
     String *incs;
     String *funcs;
-    String *typed;
+    C_Typed *typed;
     C_Macro *defines;
     C_Struct *structs;
 };
@@ -80,6 +86,212 @@ bool skip_whitespace_and_new_line(u32 *out_pos, String source) {
     return *out_pos < source.len;
 }
 
+void ignore_comments(String source, u32 *pos) {
+    if          (*pos + 1 < source.len && source.val[*pos + 1] == '/') {
+        *pos += 2;
+        while (*pos < source.len && source.val[*pos] != '\n') {
+            *pos += 1;
+        }
+    } else if   (*pos + 1 < source.len && source.val[*pos + 1] == '*') {
+        *pos += 2;
+        while (*pos + 1 < source.len && !(source.val[*pos] == '*' && source.val[*pos + 1] == '/')) {
+            *pos += 1;
+        }
+        *pos += 1; // second one will get skipped by the parse loop
+    }
+}
+
+void parse_c_struct(Arena *allocator, Module *out_mod, String source, u32 *pos) {
+    *pos += sizeof("struct"); // '\0'
+    assert(skip_whitespace_and_new_line(pos, source), S("expected struct ident but got eof"));
+
+    u32 beg = *pos;
+    assert(read_ident(pos, source), S("failed to read struct ident"));
+
+    String name = str_copy(allocator, source, beg, *pos);
+    assert(skip_whitespace_and_new_line(pos, source), S("expected struct body but got eof"));
+    assert(source.val[*pos] == '{', S("expected opening brace after struct ident"));
+    u16 braces = 1;
+    beg = *pos;
+    *pos += 1;
+
+    while (*pos < source.len && braces > 0) {
+        if          (source.val[*pos] == '{') {
+            braces += 1;
+        } else if   (source.val[*pos] == '}') {
+            braces -= 1;
+        }
+
+        *pos += 1;
+    }
+
+    C_Struct plex = {
+        .name = name,
+        .data = str_copy(allocator, source, beg, *pos),
+    };
+    array_push(allocator, out_mod->structs, plex);
+}
+
+void parse_c_typedef(Arena *allocator, Module *out_mod, String source, u32 *pos) {
+    u32 beg = *pos;
+    *pos += sizeof("typedef");
+    assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof after typedef"));
+
+    if (CMP_TO_STRING("struct ", source, *pos)) {
+        *pos += sizeof("struct");
+        while (*pos < source.len && source.val[*pos] != ';' && source.val[*pos] != '{') {
+            *pos += 1;
+        }
+
+        if (*pos < source.len && source.val[*pos] == '{') {
+            *pos = beg + sizeof("typedef");
+            return;
+        }
+    }
+    while (*pos < source.len && source.val[*pos] != ';') {
+        *pos += 1;
+    }
+    *pos += 1;
+
+    u32 last_space = 0;
+    s32 prev = (*pos) - 1;
+    while (prev > 0 && last_space == 0) {
+        if (source.val[prev] == ' ' || source.val[prev] == '\t' || source.val[prev] == '\n') {
+            last_space = prev;
+        }
+        prev -= 1;
+    }
+
+    assert(last_space != 0, S("expected destination name in typedef"));
+    C_Typed c_typedef = {
+        .raw_alias = str_copy(allocator, source, beg, *pos),
+        .dst_begin = last_space,
+    };
+    array_push(allocator, out_mod->typed, c_typedef);
+}
+
+void parse_c_macros(Arena *allocator, Module *out_mod, String source, u32 *pos) {
+    u32 beg = 0;
+
+    if  (CMP_TO_STRING("#include ", source, *pos)) {
+        beg = *pos;
+        while (*pos < source.len && source.val[*pos] != '\n') {
+            *pos += 1;
+        }
+
+        String include = str_copy(allocator, source, beg, *pos);
+        array_push(allocator, out_mod->incs, include);
+        return;
+    } 
+
+    if (!CMP_TO_STRING("#define ", source, *pos)) {
+        return;
+    }
+    *pos += sizeof("#define");
+    assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof #define"));
+
+    beg = *pos;
+    assert(read_ident(pos, source), S("failed to read define macro identifer"));
+    *pos += 1;
+
+    String name = str_copy(allocator, source, beg, *pos);
+    String args  = {0};
+    assert(skip_whitespace_and_new_line(pos, source), S("expected define body after identifier"));
+
+    if (*pos < source.len && source.val[*pos] == '(') {
+        beg = *pos;
+        u16 braces = 1;
+
+        while (*pos < source.len && braces > 0) {
+            if          (source.val[*pos] == '(') {
+                braces += 1;
+            } else if   (source.val[*pos] == ')') {
+                braces -= 1;
+            }
+
+            
+            *pos += 1;
+        }
+
+        args = str_copy(allocator, source, beg, *pos);
+    }
+
+    beg = *pos;
+    u32 bks = 0;
+    while (*pos < source.len && (source.val[*pos] != '\n' || bks > 0)) {
+        if          (source.val[*pos] == '\n') {
+            bks -= 1;
+        } else if   (source.val[*pos] == '\\') {
+            bks += 1;
+        }
+        *pos += 1;
+    }
+
+    C_Macro define = {
+        .name = name,
+        .args = args,
+        .data = str_copy(allocator, source, beg, *pos),
+    };
+    array_push(allocator, out_mod->defines, define);
+}
+
+void parse_c_function(Arena *allocator, Module *out_mod, String source, u32 *pos) {
+    u32 tmp = *pos + 1;
+    u32 brc = 1;
+
+    while (tmp < source.len && brc > 0) {
+        if          (source.val[tmp] == '(') {
+            brc += 1;
+        } else if   (source.val[tmp] == ')') {
+            brc -= 1;
+        }
+
+        tmp += 1;
+    }
+
+    brc = tmp;
+    skip_whitespace_and_new_line(&tmp, source);
+    if (tmp < source.len && source.val[tmp] == '{') {
+        s64 i = *pos;
+        s8 space_and_newline = 0;
+    
+        while (i > 0) {
+            if (source.val[i] == ' ' || source.val[i] == '\n') {
+                if (space_and_newline == 1) {
+                    i += 1;
+                    break;
+                }
+                space_and_newline += 1;
+            }
+            i -= 1;
+        }
+
+        u32 len = (brc - i) + 2;
+        String header = {
+            .val = alloc(allocator, u8, len),
+            .len = len,
+        };
+        header.val[len - 1] = ';';
+        for (u32 idx = i; idx < brc; idx++) {
+            header.val[idx - i] = source.val[idx];
+        }
+
+        array_push(allocator, out_mod->funcs, header);
+        brc = 1;
+        *pos = tmp + 1;
+
+        while (*pos < source.len && brc > 0) {
+            if          (source.val[*pos] == '{') {
+                brc += 1;
+            } else if   (source.val[*pos] == '}') {
+                brc -= 1;
+            }
+
+            *pos += 1;
+        }
+    }
+}
+
 void create_module_from_file(Arena *allocator, String file_name, Module *out_mod) {
     if (is_log_enabled) {
         printf("[INFO] reading file: `%s`\n", file_name.val);
@@ -89,185 +301,25 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
     String source = file_read_as_string_alloc(allocator, file_name);
 
     while (i < source.len) {
-        u64 beg;
-
         switch (source.val[i]) {
             case 's':
-                if (!CMP_TO_STRING("struct ", source, i)) {
-                    break;
+                if (CMP_TO_STRING("struct ", source, i)) {
+                    parse_c_struct(allocator, out_mod, source, &i);
                 }
-                i += sizeof("struct"); // '\0'
-                assert(skip_whitespace_and_new_line(&i, source), S("expected struct ident but got eof"));
-
-                beg = i;
-                assert(read_ident(&i, source), S("failed to read struct ident"));
-
-                String name = str_copy(allocator, source, beg, i);
-                assert(skip_whitespace_and_new_line(&i, source), S("expected struct body but got eof"));
-                assert(source.val[i] == '{', S("expected opening brace after struct ident"));
-                u16 braces = 1;
-                beg = i;
-                i += 1;
-
-                while (i < source.len && braces > 0) {
-                    if          (source.val[i] == '{') {
-                        braces += 1;
-                    } else if   (source.val[i] == '}') {
-                        braces -= 1;
-                    }
-
-                    i += 1;
-                }
-
-                C_Struct plex = {
-                    .name = name,
-                    .data = str_copy(allocator, source, beg, i),
-                };
-                array_push(allocator, out_mod->structs, plex);
             break;
             case 't':
-                if (!CMP_TO_STRING("typedef ", source, i)) {
-                    break;
+                if (CMP_TO_STRING("typedef ", source, i)) {
+                    parse_c_typedef(allocator, out_mod, source, &i);
                 }
-                beg = i;
-                i += sizeof("typedef");
-                assert(skip_whitespace_and_new_line(&i, source), S("unexpected eof after typedef"));
-
-
-                if (CMP_TO_STRING("struct ", source, i)) {
-                    i += sizeof("struct");
-                    while (i < source.len && source.val[i] != ';' && source.val[i] != '{') {
-                        i += 1;
-                    }
-
-                    if (i < source.len && source.val[i] == '{') {
-                        i = beg + sizeof("typedef");
-                        break;
-                    }
-                }
-                while (i < source.len && source.val[i] != ';') {
-                    i += 1;
-                }
-
-                String c_typedef = str_copy(allocator, source, beg, i + 1);
-                array_push(allocator, out_mod->typed, c_typedef);
             break;
             case '#':
-                if          (CMP_TO_STRING("#include ", source, i)) {
-                    beg = i;
-                    while (i < source.len && source.val[i] != '\n') {
-                        i += 1;
-                    }
-
-                    String include = str_copy(allocator, source, beg, i);
-                    array_push(allocator, out_mod->incs, include);
-                } else if   (CMP_TO_STRING("#define ", source, i)) {
-                    i += sizeof("#define");
-                    while (i < source.len && source.val[i] == ' ') {
-                        i += 1;
-                    }
-
-                    beg = i;
-                    assert(read_ident(&i, source), S("failed to read define macro identifer"));
-                    i += 1;
-
-                    String name = str_copy(allocator, source, beg, i);
-                    String args  = {0};
-                    while (i < source.len && source.val[i] == ' ') {
-                        i += 1;
-                    }
-
-                    if (i < source.len && source.val[i] == '(') {
-                        beg = i;
-                        u16 braces = 1;
-
-                        while (i < source.len && braces > 0) {
-                            if          (source.val[i] == '(') {
-                                braces += 1;
-                            } else if   (source.val[i] == ')') {
-                                braces -= 1;
-                            }
-
-                            i += 1;
-                        }
-
-                        args = str_copy(allocator, source, beg, i);
-                    }
-
-                    beg = 0;
-                    u32 bks = 0;
-                    while (i < source.len && (source.val[i] != '\n' || bks > 0)) {
-                        if          (source.val[i] == '\n') {
-                            bks -= 1;
-                        } else if   (source.val[i] == '\\') {
-                            bks += 1;
-                        }
-                        i += 1;
-                    }
-
-                    C_Macro define = {
-                        .name = name,
-                        .args = args,
-                        .data = str_copy(allocator, source, beg, i + 1),
-                    };
-                    array_push(allocator, out_mod->defines, define);
-                }
+                parse_c_macros(allocator, out_mod, source, &i);
             break;
             case '(':
-                u32 tmp = i + 1;
-                u32 brc = 1;
-
-                while (tmp < source.len && brc > 0) {
-                    if          (source.val[tmp] == '(') {
-                        brc += 1;
-                    } else if   (source.val[tmp] == ')') {
-                        brc -= 1;
-                    }
-
-                    tmp += 1;
-                }
-
-                brc = tmp;
-                skip_whitespace_and_new_line(&tmp, source);
-                if (tmp < source.len && source.val[tmp] == '{') {
-                    s64 pos = i;
-                    u8 spnl = 0;
-                
-                    while (pos > 0) {
-                        if (source.val[pos] == ' ' || source.val[pos] == '\n') {
-                            if (spnl == 1) {
-                                pos += 1;
-                                break;
-                            }
-                            spnl += 1;
-                        }
-                        pos -= 1;
-                    }
-
-                    u32 len = (brc - pos) + 2;
-                    String header = {
-                        .val = alloc(allocator, u8, len),
-                        .len = len,
-                    };
-                    header.val[len - 1] = ';';
-                    for (u32 idx = pos; idx < brc; idx++) {
-                        header.val[idx - pos] = source.val[idx];
-                    }
-
-                    array_push(allocator, out_mod->funcs, header);
-                    brc = 1;
-                    i = tmp + 1;
-
-                    while (i < source.len && brc > 0) {
-                        if          (source.val[i] == '{') {
-                            brc += 1;
-                        } else if   (source.val[i] == '}') {
-                            brc -= 1;
-                        }
-
-                        i += 1;
-                    }
-                }
+                parse_c_function(allocator, out_mod, source, &i);
+            break;
+            case '/':
+                ignore_comments(source, &i);
             break;
         }
 
@@ -283,6 +335,32 @@ void append_strings_with_nl(Arena *allocator, String *strs, StringBuilder **file
     sb_push_char(allocator, *file, '\n');
 }
 
+void append_c_typedefs_with_nl(Arena *allocator, Module *module, StringBuilder **file) {
+    for (u32 i = 0; i < array_len(module->typed); i++) {
+        sb_push_str(allocator, *file, module->typed[i].raw_alias);
+        sb_push_char(allocator, *file, '\n');
+    }
+    for (u32 i = 0; i < array_len(module->structs); i++) {
+        sb_push_str(allocator, *file, S("typedef struct "));
+        sb_push_str(allocator, *file, module->structs[i].name);
+        sb_push_char(allocator, *file, ' ');
+        sb_push_str(allocator, *file, module->structs[i].name);
+        sb_push_str(allocator, *file, S(";\n"));
+    }
+    sb_push_char(allocator, *file, '\n');
+}
+
+void append_c_macros_with_nl(Arena *allocator, C_Macro *macros, StringBuilder **file) {
+    for (u32 i = 0; i < array_len(macros); i++) {
+        sb_push_str(allocator, *file, S("#define "));
+        sb_push_str(allocator, *file, macros[i].name);
+        sb_push_str(allocator, *file, macros[i].args);
+        sb_push_str(allocator, *file, macros[i].data);
+        sb_push_char(allocator, *file, '\n');
+    }
+    sb_push_char(allocator, *file, '\n');
+}
+
 void resolve_type(
         Arena *allocator, 
         TodoBadStrHm **visited, 
@@ -291,6 +369,8 @@ void resolve_type(
         u32 index
 ) {
     TodoBadStrHm value = {0};
+    assert(module->structs[index].name.len < MAX_IDENT_LEN, S("struct identifier is larger than max allowed len"));
+
     for (u32 i = 0; i < module->structs[index].name.len; i++) {
         value.key[i] = module->structs[index].name.val[i];
         printf("%cX", value.key[i]);
@@ -337,29 +417,8 @@ s32 main(s32 argc, const char **argv, char **environ) {
     }
 
     append_strings_with_nl(&allocator, module.incs, &unit);
-    // TODO: do you need c keywords like short and char?
-    for (u32 i = 0; i < array_len(module.typed); i++) {
-        assert(
-                module.typed[i].len < MAX_IDENT_LEN, 
-                S("typedef name was longer than allowed ident len")
-        );
-        sb_push_str(&allocator, unit, module.typed[i]);
-        sb_push_char(&allocator, unit, '\n');
-
-        for (u32 j = 0; j < MAX_IDENT_LEN; j++) key[j] = 0;
-
-        s32 pos = module.typed[i].len - 1;
-        while (pos > 0 && module.typed[i].val[pos] != ' ') {
-            pos -= 1;
-        }
-        pos += 1;
-
-        for (u32 j = pos; j < module.typed[i].len - 1; j++) {
-            key[j] = module.typed[i].val[j];
-        }
-        hm_put(&allocator, visited, key, empty);
-    }
-    sb_push_char(&allocator, unit, '\n');
+    append_c_typedefs_with_nl(&allocator, &module, &unit);
+    append_c_macros_with_nl(&allocator, module.defines, &unit);
 
     // NOT the most optimal solution since I could 
     // not make a hashmap for the structs but well

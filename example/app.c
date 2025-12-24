@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define SET_FN_PTR(name, type) struct { type (*name)(type, type); }
-
-int add(int a, int b) {
-    return a + b;
-}
+#define SET_FN_PTR(name, type) struct \
+    { type (*name)(type, type); \
+    }
 
 struct A {
     struct {

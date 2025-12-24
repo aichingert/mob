@@ -7,9 +7,6 @@ int sub(int a, int b) {
 
 typedef int s32;
 
-typedef struct A { s32 a } A;
-typedef struct A A;
-
 int add(int a, int b) {
     return a + b;
 }
