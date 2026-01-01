@@ -26,8 +26,8 @@ static bool is_log_enabled = false;
 #define MAX_IDENT_LEN 120
 
 struct C_Typed {
-    String  raw_alias;
     u32     dst_begin;
+    String  raw_alias;
 };
 
 struct C_Struct {
@@ -41,7 +41,7 @@ struct C_Macro {
     String data;
 };
 
-struct TodoBadStrHm {
+struct TodoBadStrHs {
     u8 key[MAX_IDENT_LEN];
 };
 
@@ -111,9 +111,9 @@ void parse_c_struct(Arena *allocator, Module *out_mod, String source, u32 *pos) 
     String name = str_copy(allocator, source, beg, *pos);
     assert(skip_whitespace_and_new_line(pos, source), S("expected struct body but got eof"));
     assert(source.val[*pos] == '{', S("expected opening brace after struct ident"));
+    *pos += 1;
     u16 braces = 1;
     beg = *pos;
-    *pos += 1;
 
     while (*pos < source.len && braces > 0) {
         if          (source.val[*pos] == '{') {
@@ -127,7 +127,7 @@ void parse_c_struct(Arena *allocator, Module *out_mod, String source, u32 *pos) 
 
     C_Struct plex = {
         .name = name,
-        .data = str_copy(allocator, source, beg, *pos),
+        .data = str_copy(allocator, source, beg, *pos - 1),
     };
     array_push(allocator, out_mod->structs, plex);
 }
@@ -208,7 +208,6 @@ void parse_c_macros(Arena *allocator, Module *out_mod, String source, u32 *pos) 
             } else if   (source.val[*pos] == ')') {
                 braces -= 1;
             }
-
             
             *pos += 1;
         }
@@ -361,28 +360,47 @@ void append_c_macros_with_nl(Arena *allocator, C_Macro *macros, StringBuilder **
     sb_push_char(allocator, *file, '\n');
 }
 
-void resolve_type(
+bool resolve_type(
         Arena *allocator, 
-        TodoBadStrHm **visited, 
+        TodoBadStrHs *is_alias,
+        TodoBadStrHs **visited, 
         Module *module, 
         StringBuilder *output,
         u32 index
 ) {
-    TodoBadStrHm value = {0};
-    assert(module->structs[index].name.len < MAX_IDENT_LEN, S("struct identifier is larger than max allowed len"));
+    // struct A {
+    //      Field b;
+    // }
+    //
+    // struct Field {
+    //      Area a;
+    //      uint cap;
+    // }
 
-    for (u32 i = 0; i < module->structs[index].name.len; i++) {
-        value.key[i] = module->structs[index].name.val[i];
-        printf("%cX", value.key[i]);
+    TodoBadStrHs value = {0};
+    assert(module->structs[index].name.len < MAX_IDENT_LEN, S("struct identifier is larger than max allowed len"));
+    memcpy(value.key, module->structs[index].name.val, module->structs[index].name.len);
+
+    // NOTE: not checking aliases
+    if (hm_get(is_alias, value.key) != NULL) {
+        return true;
+    }
+    // NOTE: checking for cycles
+    if (hm_get(*visited, value.key) != NULL) {
+        return false;
+    }
+    hm_put(allocator, *visited, value.key, value);
+
+    u32 field_pos = 0;
+
+    while (field_pos < module->structs[index].data.len) {
+        printf("%c", module->structs[index].data.val[field_pos]);
+        field_pos += 1;
+        //skip_whitespace_and_new_line(&field_pos, module->structs[index].data);
     }
     printf("\n");
 
-    if (hm_get(*visited, value.key)) {
-        printf("contained\n");
-        return;
-    } else {
-        printf("no miambre\n");
-    }
+    return true;
 }
 
 s32 main(s32 argc, const char **argv, char **environ) {
@@ -402,8 +420,9 @@ s32 main(s32 argc, const char **argv, char **environ) {
     Arena allocator = {0};
     arena_init(&allocator, 2 << 24);
 
-    TodoBadStrHm *visited = NULL;
-    TodoBadStrHm empty = {0};
+    TodoBadStrHs *visited = NULL;
+    TodoBadStrHs *is_alias = NULL;
+    TodoBadStrHs empty = {0};
     u8 key[MAX_IDENT_LEN]; 
     for (u32 i = 0; i < MAX_IDENT_LEN; i++) key[i] = 0;
     hm_put(&allocator, visited, key, empty);
@@ -420,10 +439,27 @@ s32 main(s32 argc, const char **argv, char **environ) {
     append_c_typedefs_with_nl(&allocator, &module, &unit);
     append_c_macros_with_nl(&allocator, module.defines, &unit);
 
+    for (u32 i = 0; i < array_len(module.typed); i++) {
+        s32 typed_pos = module.typed[i].raw_alias.len - 2;
+
+        while (typed_pos > 0 && !is_ident(module.typed[i].raw_alias.val[typed_pos])) {
+            typed_pos -= 1;
+        }
+        s32 end = typed_pos + 1;
+
+        while (typed_pos > 0 && is_ident(module.typed[i].raw_alias.val[typed_pos])) {
+            typed_pos -= 1;
+        }
+
+        TodoBadStrHs kv = {0};
+        memcpy(kv.key, module.typed[i].raw_alias.val + (typed_pos + 1), end - (typed_pos + 1));
+        hm_put(&allocator, is_alias, kv.key, empty);
+    }
+
     // NOT the most optimal solution since I could 
     // not make a hashmap for the structs but well
     for (u32 i = 0; i < array_len(module.structs); i++) {
-        resolve_type(&allocator, &visited, &module, NULL, i);
+        resolve_type(&allocator, is_alias, &visited, &module, NULL, i);
     }
 
     append_strings_with_nl(&allocator, module.funcs, &unit);
