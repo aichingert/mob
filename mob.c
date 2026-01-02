@@ -2,14 +2,9 @@
 
 char **ENV = NULL;
 
-static const String BUILD = S("mob-self.c");
-static const String FLAGS[] = {
-    S("-std=c23"),
-    S("-ffreestanding"),
-    S("-Wextra"),
-    S("-Wall"),
-};
+static const String BUILD = S("bootstrap.c");
 static const String PATHS[] = {
+    S("std/io.c"),
     S("std/mem.c"),
     S("std/sort.c"),
     S("std/math.c"),
@@ -381,7 +376,7 @@ bool resolve_type(
     //
     // struct Field {
     //      Area a;
-    //      uint cap;
+    //      u32 *cap;
     // }
 
     TodoBadStrHs value = {0};
@@ -467,8 +462,26 @@ bool resolve_type(
     return true;
 }
 
+void create_context(Arena *allocator, StringBuilder **output) {
+    const String ctx = S(
+        "typedef struct Context {\n"
+        "   u8 **environment_vars;\n"
+        "   // TODO: maybe put allocator here too \n"
+        "} Context;\n"
+        "Context ctx = {0};\n"
+        "\n"
+        "void init_ctx(u8 **environment_vars) {\n"
+        "   ctx.environment_vars = environment_vars;\n"
+        "}\n"
+        "\n"
+    );
+    sb_push_str(allocator, *output, ctx);
+}
+
+#define PLUS_ONE(n) n + 1
+
 s32 main(s32 argc, const char **argv, char **environ) {
-    ENV = environ;
+    init_ctx((u8**)environ);
 
     if (argc > 1) {
         String logging_flag = S("--enable_log");
@@ -544,8 +557,7 @@ s32 main(s32 argc, const char **argv, char **environ) {
 
     sb_push_char(&allocator, unit, '\n');
     append_strings_with_nl(&allocator, module.funcs, &unit);
-
-    // TODO: append context struct with init function
+    create_context(&allocator, &unit);
 
     for (u32 i = 0; i < PATH_LEN; i++) {
         sb_push_str(&allocator, unit, S("#include \""));

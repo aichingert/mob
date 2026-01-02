@@ -31,10 +31,6 @@ bool write_string_to_file(String buf, String name) {
     if (file < 0) {
         return false;
     }
-
-    for (u32 i = 0 ; i < buf.len; i++) {
-        printf("%c", buf.val[i]);
-    }
-    printf("\n");
+    
     return os_write(file, buf.val, buf.len) >= 0;
 }

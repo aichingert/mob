@@ -38,16 +38,16 @@ void read_wayland_env(
         String wayland_display_name, 
         String *wayland_display
 ) {
-    char **env_ptr = ENV;
+    u8 **env_ptr = ctx.environment_vars;
 
     while (*env_ptr != NULL 
             && (xdg_runtime_dir->len == 0 || wayland_display->len == 0)) {
-        if          (c_string_begins_with_str(*env_ptr, xdg_runtime_dir_name)) {
+        if          (c_string_begins_with_str((char*)*env_ptr, xdg_runtime_dir_name)) {
             *xdg_runtime_dir = from_c_string(
-                    *env_ptr + xdg_runtime_dir_name.len + 1);
-        } else if   (c_string_begins_with_str(*env_ptr, wayland_display_name)) {
+                    (char*)*env_ptr + xdg_runtime_dir_name.len + 1);
+        } else if   (c_string_begins_with_str((char*)*env_ptr, wayland_display_name)) {
             *wayland_display = from_c_string(
-                    *env_ptr + wayland_display_name.len + 1);
+                    (char*)*env_ptr + wayland_display_name.len + 1);
         }
 
         env_ptr += 1;
