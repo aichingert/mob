@@ -2,7 +2,7 @@
 
 char **ENV = NULL;
 
-static const String BUILD = S("app.c");
+static const String BUILD = S("mob-self.c");
 static const String FLAGS[] = {
     S("-std=c23"),
     S("-ffreestanding"),
@@ -10,9 +10,23 @@ static const String FLAGS[] = {
     S("-Wall"),
 };
 static const String PATHS[] = {
-    S("example/app.c"),
-    S("example/math.c"),
+    S("std/mem.c"),
+    S("std/sort.c"),
+    S("std/math.c"),
+    S("std/file.c"),
     S("std/types.c"),
+    S("std/arena.c"),
+    S("std/string.c"),
+    S("std/collection.c"),
+    S("std/unix_os.c"),
+    S("std/unix_sys.c"),
+    S("std/unix_socket.c"),
+    S("std/unix_window.c"),
+    S("mob.c"),
+
+    //S("example/app.c"),
+    //S("example/math.c"),
+    //S("std/types.c"),
 };
 static const u32    PATH_LEN = mob_static_array_len(PATHS);
 
@@ -138,15 +152,8 @@ void parse_c_typedef(Arena *allocator, Module *out_mod, String source, u32 *pos)
     assert(skip_whitespace_and_new_line(pos, source), S("unexpected eof after typedef"));
 
     if (CMP_TO_STRING("struct ", source, *pos)) {
-        *pos += sizeof("struct");
-        while (*pos < source.len && source.val[*pos] != ';' && source.val[*pos] != '{') {
-            *pos += 1;
-        }
-
-        if (*pos < source.len && source.val[*pos] == '{') {
-            *pos = beg + sizeof("typedef");
-            return;
-        }
+        *pos -= 1;
+        return;
     }
     while (*pos < source.len && source.val[*pos] != ';') {
         *pos += 1;
@@ -265,7 +272,7 @@ void parse_c_function(Arena *allocator, Module *out_mod, String source, u32 *pos
             i -= 1;
         }
 
-        u32 len = (brc - i) + 2;
+        u32 len = (brc - i) + 1;
         String header = {
             .val = alloc(allocator, u8, len),
             .len = len,
@@ -365,7 +372,7 @@ bool resolve_type(
         TodoBadStrHs *is_alias,
         TodoBadStrHs **visited, 
         Module *module, 
-        StringBuilder *output,
+        StringBuilder **output,
         u32 index
 ) {
     // struct A {
@@ -378,8 +385,9 @@ bool resolve_type(
     // }
 
     TodoBadStrHs value = {0};
-    assert(module->structs[index].name.len < MAX_IDENT_LEN, S("struct identifier is larger than max allowed len"));
-    memcpy(value.key, module->structs[index].name.val, module->structs[index].name.len);
+    C_Struct plex = module->structs[index];
+    assert(plex.name.len < MAX_IDENT_LEN, S("struct identifier is larger than max allowed len"));
+    memcpy(value.key, plex.name.val, plex.name.len);
 
     // NOTE: not checking aliases
     if (hm_get(is_alias, value.key) != NULL) {
@@ -387,19 +395,75 @@ bool resolve_type(
     }
     // NOTE: checking for cycles
     if (hm_get(*visited, value.key) != NULL) {
+        printf("ERROR: ");
+        for (u32 i = 0; i < plex.name.len; i++) {
+            printf("%c", plex.name.val[i]);
+        }
         return false;
     }
     hm_put(allocator, *visited, value.key, value);
 
     u32 field_pos = 0;
 
-    while (field_pos < module->structs[index].data.len) {
-        printf("%c", module->structs[index].data.val[field_pos]);
-        field_pos += 1;
-        //skip_whitespace_and_new_line(&field_pos, module->structs[index].data);
-    }
-    printf("\n");
+    while (field_pos < plex.data.len) {
+        skip_whitespace_and_new_line(&field_pos, plex.data);
+        ignore_comments(plex.data, &field_pos);
+        skip_whitespace_and_new_line(&field_pos, plex.data);
+ 
+        u32 ident_start = field_pos;
+        read_ident(&field_pos, plex.data);
 
+        u32 ident_end = field_pos;
+        u32 ident_len = ident_end - ident_start;
+
+        if (ident_len == 0) {
+            assert(field_pos == plex.data.len, S("no identifier found but len is not the same"));
+            continue;
+        }
+
+        assert(ident_len < MAX_IDENT_LEN, S("type of field is longer than max ident len"));
+        TodoBadStrHs ident = {0};
+        for (u32 i = 0; i < ident_len; i++) {
+            ident.key[i] = plex.data.val[ident_start + i];
+        }
+
+        skip_whitespace_and_new_line(&field_pos, module->structs[index].data);
+        if ((field_pos < module->structs[index].data.len 
+            && module->structs[index].data.val[field_pos] == '*'
+            )
+            || hm_get(is_alias, ident.key) != NULL
+        ) {
+            while (field_pos < plex.data.len && plex.data.val[field_pos] != ';') {
+                field_pos += 1;
+            }
+            field_pos += 1;
+            continue;
+        }
+
+        for (u32 i = 0; i < array_len(module->structs); i++) {
+            C_Struct *cur = &module->structs[i];
+            TodoBadStrHs name = {0};
+            memcpy(name.key, cur->name.val, cur->name.len);
+
+            if (memeql(name.key, cur->name.len, plex.data.val + ident_start, ident_end - ident_start)
+            && hm_get(*visited, name.key) == NULL
+            && !resolve_type(allocator, is_alias, visited, module, output, i)) {
+                    return false;
+            }
+        }
+
+        while (field_pos < plex.data.len && plex.data.val[field_pos] != ';') {
+            field_pos += 1;
+        }
+        field_pos += 1;
+    }
+
+
+    sb_push_str(allocator, *output, S("struct "));
+    sb_push_str(allocator, *output, plex.name);
+    sb_push_char(allocator, *output, '{');
+    sb_push_str(allocator, *output, plex.data);
+    sb_push_str(allocator, *output, S("};\n"));
     return true;
 }
 
@@ -459,10 +523,29 @@ s32 main(s32 argc, const char **argv, char **environ) {
     // NOT the most optimal solution since I could 
     // not make a hashmap for the structs but well
     for (u32 i = 0; i < array_len(module.structs); i++) {
-        resolve_type(&allocator, is_alias, &visited, &module, NULL, i);
+        TodoBadStrHs kv = {0};
+        memcpy(kv.key, module.structs[i].name.val, module.structs[i].name.len);
+
+        // NOTE: already set
+        // in recursive call
+        if (hm_get(visited, kv.key) != NULL) {
+            continue;
+        }
+
+        // NOTE: cycle detected
+        if (!resolve_type(&allocator, is_alias, &visited, &module, &unit, i)) {
+            printf(" is a cyclic dependency of `");
+            for (u32 j = 0; j < module.structs[i].name.len; j++) {
+                printf("%c", module.structs[i].name.val[j]);
+            }
+            printf("`\n");
+        }
     }
 
+    sb_push_char(&allocator, unit, '\n');
     append_strings_with_nl(&allocator, module.funcs, &unit);
+
+    // TODO: append context struct with init function
 
     for (u32 i = 0; i < PATH_LEN; i++) {
         sb_push_str(&allocator, unit, S("#include \""));
@@ -470,12 +553,11 @@ s32 main(s32 argc, const char **argv, char **environ) {
         sb_push_str(&allocator, unit, S("\"\n"));
     }
 
-    printf("\n>\n");
-    for (u32 i = 0; i < array_len(unit); i++) {
-        printf("%c", unit[i]);
-    }
-    printf("\n");
-
+    String content = {
+        .val = unit,
+        .len = array_len(unit),
+    };
+    assert(write_string_to_file(content, BUILD), S("failed to write output file"));
 
     arena_deinit(&allocator);
     return 0;

@@ -1,5 +1,6 @@
+// NOTE: update os_open_file perms with the defines
 void file_read_as_string(String str, String name) {
-    s32 file = os_open_file(name, O_RDONLY, 644);
+    s32 file = os_open_file(name, O_RDONLY, 0644);
     assert(file > 0, S("unable to open file"));
 
     s64 size = os_file_size(file);
@@ -10,7 +11,7 @@ void file_read_as_string(String str, String name) {
 }
 
 String file_read_as_string_alloc(Arena *arena, String name) {
-    s32 file = os_open_file(name, O_RDWR, 644);
+    s32 file = os_open_file(name, O_RDWR, 0644);
     assert(file > 0, S("unable to open file"));
 
     s64 size = os_file_size(file);
@@ -22,4 +23,18 @@ String file_read_as_string_alloc(Arena *arena, String name) {
         .val = mem,
         .len = size,
     };
+}
+
+bool write_string_to_file(String buf, String name) {
+    s32 file = os_open_file(name, O_CREAT | O_WRONLY, 0644);
+
+    if (file < 0) {
+        return false;
+    }
+
+    for (u32 i = 0 ; i < buf.len; i++) {
+        printf("%c", buf.val[i]);
+    }
+    printf("\n");
+    return os_write(file, buf.val, buf.len) >= 0;
 }

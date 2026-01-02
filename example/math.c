@@ -16,6 +16,6 @@ Data merge_data(Data a, Data b) {
 
     return (Data){
         .value = a.value + b.value,
-        .place = a.place + b.place,
+        .place = a.place,
     };
 }

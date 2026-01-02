@@ -1,4 +1,5 @@
 #define SYS_CALL_READ       0
+#define SYS_CALL_WRITE      1
 #define SYS_CALL_OPEN       2
 #define SYS_CALL_CLOSE      3
 #define SYS_CALL_LSEEK      8
@@ -37,6 +38,26 @@ s64 sys_read(s32 fd, void *buf, u64 count) {
                 [asm_count] "r" (count),
                 [sys_call_n]"r" (SYS_CALL_READ)
             : "%rdi", "%esi", "%edx"
+    );
+
+    return result;
+}
+
+s64 sys_write(s32 fd, void *buf, u64 count) {
+    s64 result = 0;
+
+    __asm__ volatile (
+            "   movq %[asm_fd],     %%rdi\n"
+            "   movq %[asm_buf],    %%rsi\n"
+            "   movq %[asm_count],  %%rdx\n"
+            "   movl %[sys_call_n], %%eax\n"
+            "   syscall\n"
+            : "=r" (result)
+            :   [asm_fd]    "r" ((u64)fd),
+                [asm_buf]   "r" (buf),
+                [asm_count] "r" (count),
+                [sys_call_n]"r" (SYS_CALL_WRITE)
+            : "%rdi", "%rsi", "%rdx", "%eax"
     );
 
     return result;

@@ -5,24 +5,28 @@
     { type (*name)(type, type); \
     }
 
-struct A {
-    struct {
-        int c;
-        int d;
-    };
+//struct A {
+//    struct {
+//        int c;
+//        int d;
+//    };
+//
+//    union {
+//        int a;
+//        char b;
+//    };
+//
+//    SET_FN_PTR(is_eq, Data);
+//    int (*f)(int, int);
+//};
 
-    union {
-        int a;
-        char b;
-    };
-
-    SET_FN_PTR(is_eq, Data);
-    int (*f)(int, int);
+struct Place {
+    void *lol;
 };
 
 struct Data {
-    int value;
-    int place;
+    s32 value;
+    Place place;
 };
 
 int (*f)(int, int) = add;
