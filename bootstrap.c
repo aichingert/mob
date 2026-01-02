@@ -14,8 +14,8 @@ typedef long long int           s64;
 typedef float                   f32;
 typedef double                  f64;
 typedef u8 StringBuilder;
-typedef struct Io Io;
 typedef struct Buffer Buffer;
+typedef struct Io Io;
 typedef struct ArenaChunk ArenaChunk;
 typedef struct Arena Arena;
 typedef struct String String;
@@ -29,6 +29,8 @@ typedef struct C_Struct C_Struct;
 typedef struct C_Macro C_Macro;
 typedef struct TodoBadStrHs TodoBadStrHs;
 typedef struct Module Module;
+
+#define NULL ((void*)0)
 
 #define CREATE_MEM_WRITE_FUNC(type)                         \
     static inline void mem_write_ ## type(                  \
@@ -73,8 +75,6 @@ typedef struct Module Module;
 #define MAX(a, b)   ((a) > (b) ? (a) : (b))
 #define MIN(a, b)   ((a) < (b) ? (a) : (b))
 #define ABS(a)      ((a) > ((s64)0) ? (a) : ((-(a))))
-#define NULL ((void *)0)
-
 #define PAGE_SIZE 4096
 #define allocx(a, b, c, d, e, ...)  e
 #define alloc(...)          allocx(__VA_ARGS__, alloc4, alloc3, alloc2)(__VA_ARGS__)
@@ -206,14 +206,14 @@ typedef struct Module Module;
     memeql(u8 ## slice, sizeof(slice) - 1, string.val + off, MIN(string.len - off, sizeof(slice) - 1))
 #define MAX_IDENT_LEN 120
 
+struct Buffer{
+    u8 *mem;
+    u64 len;
+};
 struct Io{
     u8 *buf;
     u64 len;
     u64 cap;
-};
-struct Buffer{
-    u8 *mem;
-    u64 len;
 };
 struct ArenaChunk{
     u64 len;
@@ -364,12 +364,12 @@ void init_ctx(u8 **environment_vars) {
    ctx.environment_vars = environment_vars;
 }
 
-#include "std/io.c"
+#include "std/types.c"
 #include "std/mem.c"
+#include "std/io.c"
 #include "std/sort.c"
 #include "std/math.c"
 #include "std/file.c"
-#include "std/types.c"
 #include "std/arena.c"
 #include "std/string.c"
 #include "std/collection.c"
