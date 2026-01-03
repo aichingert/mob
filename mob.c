@@ -20,6 +20,11 @@ struct C_Struct {
     String data;
 };
 
+struct C_Enum {
+    String name;
+    String data;
+};
+
 struct C_Macro {
     String name;
     String args;
@@ -35,6 +40,7 @@ struct TodoBadStrHs {
 struct Module {
     String *incs;
     String *funcs;
+    C_Enum *enums;
     C_Typed *typed;
     C_Macro *defines;
     C_Struct *structs;
@@ -84,6 +90,31 @@ void ignore_comments(String source, u32 *pos) {
         }
         *pos += 1; // second one will get skipped by the parse loop
     }
+}
+
+void parse_c_enum(Arena *allocator, Module *out_mod, String source, u32 *pos) {
+    *pos += sizeof("enum"); // '\0'
+    assert(skip_whitespace_and_new_line(pos, source), S("expected enum ident but got eof"));
+
+    u32 beg = *pos;
+    assert(read_ident(pos, source), S("failed to read enum ident"));
+
+    String name = str_copy(allocator, source, beg, *pos);
+    assert(skip_whitespace_and_new_line(pos, source), S("expected struct body but got eof"));
+    assert(source.val[*pos] == '{', S("expected opening brace after struct ident"));
+    beg = *pos;
+    *pos += 1;
+
+    while (*pos < source.len && source.val[*pos] != '}') {
+        *pos += 1;
+    }
+    *pos += 1;
+
+    C_Enum cenum = {
+        .name = name,
+        .data = str_copy(allocator, source, beg, *pos),
+    };
+    array_push(allocator, out_mod->enums, cenum);
 }
 
 void parse_c_struct(Arena *allocator, Module *out_mod, String source, u32 *pos) {
@@ -284,6 +315,10 @@ void create_module_from_file(Arena *allocator, String file_name, Module *out_mod
                     parse_c_struct(allocator, out_mod, source, &i);
                 }
             break;
+            case 'e':
+                if (CMP_TO_STRING("enum ", source, i)) {
+                    parse_c_enum(allocator, out_mod, source, &i);
+                }
             case 't':
                 if (CMP_TO_STRING("typedef ", source, i)) {
                     parse_c_typedef(allocator, out_mod, source, &i);
@@ -324,6 +359,14 @@ void append_c_typedefs_with_nl(Arena *allocator, Module *module, StringBuilder *
         sb_push_str(allocator, *file, module->structs[i].name);
         sb_push_str(allocator, *file, S(";\n"));
     }
+    for (u32 i = 0; i < array_len(module->enums); i++) {
+        sb_push_str(allocator, *file, S("typedef enum "));
+        sb_push_str(allocator, *file, module->enums[i].name);
+        sb_push_char(allocator, *file, ' ');
+        sb_push_str(allocator, *file, module->enums[i].name);
+        sb_push_str(allocator, *file, S(";\n"));
+    }
+
     sb_push_char(allocator, *file, '\n');
 }
 
@@ -544,6 +587,7 @@ s32 main(s32 argc, char **argv, char **environ) {
         sb_push_str(&allocator, unit, args[i]);
         sb_push_str(&allocator, unit, S("\"\n"));
     }
+    sb_push_char(&allocator, unit, '\n');
 
     String content = {
         .val = unit,

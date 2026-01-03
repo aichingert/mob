@@ -1,11 +1,6 @@
 // NOTE: https://gaultier.github.io/blog/wayland_from_scratch.html
 // NOTE: only supporting wayland
 
-typedef struct Window {
-    u16 width;
-    u16 height;
-} Window;
-
 u32 wayland_current_id = 1;
 
 static const u32 wayland_display_object_id = 1;
@@ -31,6 +26,35 @@ static const u16 wayland_wl_display_error_event = 0;
 static const u32 wayland_format_xrgb8888 = 1;
 static const u32 wayland_header_size = 8;
 static const u32 color_channels = 4;
+
+//enum WindowState {
+//    STATE_NONE,
+//    STATE_SURFACE_ACKED_CONFIGURE,
+//    STATE_SURFACE_ATTACHED,
+//};
+
+struct Window {
+    u16 width;
+    u16 height;
+
+    u32 wl_registry;
+    u32 wl_shm;
+    u32 wl_shm_pool;
+    u32 wl_buffer;
+    u32 xdg_wm_base;
+    u32 xdg_surface;
+    u32 wl_compositor;
+    u32 wl_surface;
+    u32 xdg_toplevel;
+    u32 stride;
+    u32 w;
+    u32 h;
+    u32 shm_pool_size;
+    s32 shm_fd;
+    u8 *shm_pool_data;
+
+    //WindowState state;
+};
 
 void read_wayland_env(
         String xdg_runtime_dir_name, 
@@ -122,7 +146,14 @@ u32 wayland_display_get_registry(s32 fd) {
 
 Window create_window(u16 width, u16 height) {
     s32 fd = wayland_display_connect();
-    u32 wl_registry = wayland_display_get_registry(fd);
+
+    Window win = {
+        .wl_registry = wayland_display_get_registry(fd),
+        .width = width,
+        .height = height,
+        .stride = width * color_channels,
+    };
+
     (void)wayland_wl_registry_event_global;
     (void)wayland_shm_pool_event_format;
     (void)wayland_wl_buffer_event_release;
@@ -141,12 +172,7 @@ Window create_window(u16 width, u16 height) {
     (void)wayland_xdg_surface_get_toplevel_opcode;
     (void)wayland_wl_surface_commit_opcode;
     (void)wayland_wl_display_error_event;
-    (void)color_channels;
     (void)wayland_format_xrgb8888;
-    (void)wl_registry;
 
-    return (Window){
-        .width = width,
-        .height = height,
-    };
+    return win; 
 }
