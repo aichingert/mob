@@ -26,6 +26,7 @@ typedef struct UnixSocketAddress UnixSocketAddress;
 typedef struct Window Window;
 typedef struct C_Typed C_Typed;
 typedef struct C_Struct C_Struct;
+typedef struct C_Enum C_Enum;
 typedef struct C_Macro C_Macro;
 typedef struct TodoBadStrHs TodoBadStrHs;
 typedef struct Module Module;
@@ -251,12 +252,34 @@ struct UnixSocketAddress{
 struct Window{
     u16 width;
     u16 height;
+
+    u32 wl_registry;
+    u32 wl_shm;
+    u32 wl_shm_pool;
+    u32 wl_buffer;
+    u32 xdg_wm_base;
+    u32 xdg_surface;
+    u32 wl_compositor;
+    u32 wl_surface;
+    u32 xdg_toplevel;
+    u32 stride;
+    u32 w;
+    u32 h;
+    u32 shm_pool_size;
+    s32 shm_fd;
+    u8 *shm_pool_data;
+
+    //WindowState state;
 };
 struct C_Typed{
     u32     dst_begin;
     String  raw_alias;
 };
 struct C_Struct{
+    String name;
+    String data;
+};
+struct C_Enum{
     String name;
     String data;
 };
@@ -271,6 +294,7 @@ struct TodoBadStrHs{
 struct Module{
     String *incs;
     String *funcs;
+    C_Enum *enums;
     C_Typed *typed;
     C_Macro *defines;
     C_Struct *structs;
@@ -352,6 +376,7 @@ bool is_ident(u8 character);
 bool read_ident(u32 *out_pos, String source);
 bool skip_whitespace_and_new_line(u32 *out_pos, String source);
 void ignore_comments(String source, u32 *pos);
+void parse_c_enum(Arena *allocator, Module *out_mod, String source, u32 *pos);
 void parse_c_struct(Arena *allocator, Module *out_mod, String source, u32 *pos);
 
 typedef struct Context {
@@ -378,3 +403,4 @@ void init_ctx(u8 **environment_vars) {
 #include "std/unix_socket.c"
 #include "std/unix_window.c"
 #include "mob.c"
+
