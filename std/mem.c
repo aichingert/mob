@@ -1,3 +1,7 @@
+#define KB(n)   (n * 1000)
+#define MB(n)   (KB(n) * 1000)
+#define GB(n)   (GB(n) * 1000)
+
 struct Buffer {
     u8 *mem;
     u64 len;

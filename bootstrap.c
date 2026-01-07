@@ -33,6 +33,9 @@ typedef struct Module Module;
 
 #define NULL ((void*)0)
 
+#define KB(n)   (n * 1000)
+#define MB(n)   (KB(n) * 1000)
+#define GB(n)   (GB(n) * 1000)
 #define CREATE_MEM_WRITE_FUNC(type)                         \
     static inline void mem_write_ ## type(                  \
             u8 *buf,                                        \
@@ -381,12 +384,13 @@ void parse_c_struct(Arena *allocator, Module *out_mod, String source, u32 *pos);
 
 typedef struct Context {
    u8 **environment_vars;
-   // TODO: maybe put allocator here too 
+   Arena allocator;
 } Context;
 Context ctx = {0};
 
 void init_ctx(u8 **environment_vars) {
    ctx.environment_vars = environment_vars;
+   arena_init(&ctx.allocator, MB(2));
 }
 
 #include "std/types.c"
