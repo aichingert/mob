@@ -39,16 +39,13 @@ bool memeql(u8 *cmp, u64 cmp_len, u8 *buf, u64 buf_len) {
 #define CREATE_MEM_READ_FUNC(type)                          \
     static inline type mem_read_ ## type(                   \
             u8 *buf,                                        \
-            u64 *len                                        \
+            u64 *pos                                        \
     ) {                                                     \
         assert(                                             \
-                *len >= sizeof(type),                       \
+                *pos >= sizeof(type),                       \
                 S("buffer out of bounds in mem_read"));     \
-        assert(                                             \
-                (*buf) % sizeof(type) == 0,                 \
-                S("invalid buffer alignment in mem_read")); \
         type res = *((type *)(buf));                        \
-        *len += sizeof(type);                               \
+        *pos += sizeof(type);                               \
         return res;                                         \
     }
 
