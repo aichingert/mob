@@ -51,6 +51,10 @@ void assert(bool condition, String msg) {
     #endif
 }
 
+void os_exit(u16 exit_code) {
+    sys_exit(exit_code);
+}
+
 u8 *os_alloc(u64 bytes) {
     return sys_mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 }
