@@ -36,6 +36,23 @@ bool memeql(u8 *cmp, u64 cmp_len, u8 *buf, u64 buf_len) {
     return true;
 }
 
+#define CREATE_MEM_READ_FUNC(type)                          \
+    static inline type mem_read_ ## type(                   \
+            u8 *buf,                                        \
+            u64 *len                                        \
+    ) {                                                     \
+        assert(                                             \
+                *len >= sizeof(type),                       \
+                S("buffer out of bounds in mem_read"));     \
+        assert(                                             \
+                (*buf) % sizeof(type) == 0,                 \
+                S("invalid buffer alignment in mem_read")); \
+        type res = *((type *)(buf));                        \
+        *len += sizeof(type);                               \
+        return res;                                         \
+    }
+
+
 #define CREATE_MEM_WRITE_FUNC(type)                         \
     static inline void mem_write_ ## type(                  \
             u8 *buf,                                        \
@@ -51,7 +68,12 @@ bool memeql(u8 *cmp, u64 cmp_len, u8 *buf, u64 buf_len) {
                 S("invalid buffer alignment in mem_write"));\
         *(type*)(buf + *size) = value;                      \
         *size += sizeof(value);                             \
-    }                                                       \
+    }                                                       
+
+CREATE_MEM_READ_FUNC(u8);
+CREATE_MEM_READ_FUNC(u16);
+CREATE_MEM_READ_FUNC(u32);
+CREATE_MEM_READ_FUNC(u64);
 
 CREATE_MEM_WRITE_FUNC(u8);
 CREATE_MEM_WRITE_FUNC(u16);

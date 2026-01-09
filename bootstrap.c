@@ -36,6 +36,21 @@ typedef struct Module Module;
 #define KB(n)   (n * 1000)
 #define MB(n)   (KB(n) * 1000)
 #define GB(n)   (GB(n) * 1000)
+#define CREATE_MEM_READ_FUNC(type)                          \
+    static inline type mem_read_ ## type(                   \
+            u8 *buf,                                        \
+            u64 *len                                        \
+    ) {                                                     \
+        assert(                                             \
+                *len >= sizeof(type),                       \
+                S("buffer out of bounds in mem_read"));     \
+        assert(                                             \
+                (*buf) % sizeof(type) == 0,                 \
+                S("invalid buffer alignment in mem_read")); \
+        type res = *((type *)(buf));                        \
+        *len += sizeof(type);                               \
+        return res;                                         \
+    }
 #define CREATE_MEM_WRITE_FUNC(type)                         \
     static inline void mem_write_ ## type(                  \
             u8 *buf,                                        \
@@ -51,8 +66,7 @@ typedef struct Module Module;
                 S("invalid buffer alignment in mem_write"));\
         *(type*)(buf + *size) = value;                      \
         *size += sizeof(value);                             \
-    }                                                       \
-
+    }                                                       
 #define bubble_sort_impl(T)                                     \
     void bubble_sort_ ## T (                                    \
             T *mob_internal_array,                              \
@@ -335,6 +349,7 @@ void *mob_hm_get(void *hm, u64 kv_size, void *key, u64 key_size);
 void *mob_hm_rem(void *hm, u64 kv_size, void *key, u64 key_size);
 u64 mob_hm_hasher(void *key, u64 key_size, u64 key_len);
 void assert(bool condition, String msg);
+void os_exit(u16 exit_code);
 u8 *os_alloc(u64 bytes);
 s32 os_free(u8 *mem, u64 bytes);
 s64 os_read(s32 fd, u8 *mem, u64 bytes);
