@@ -39,16 +39,13 @@ typedef struct Module Module;
 #define CREATE_MEM_READ_FUNC(type)                          \
     static inline type mem_read_ ## type(                   \
             u8 *buf,                                        \
-            u64 *len                                        \
+            u64 *pos                                        \
     ) {                                                     \
         assert(                                             \
-                *len >= sizeof(type),                       \
+                *pos >= sizeof(type),                       \
                 S("buffer out of bounds in mem_read"));     \
-        assert(                                             \
-                (*buf) % sizeof(type) == 0,                 \
-                S("invalid buffer alignment in mem_read")); \
         type res = *((type *)(buf));                        \
-        *len += sizeof(type);                               \
+        *pos += sizeof(type);                               \
         return res;                                         \
     }
 #define CREATE_MEM_WRITE_FUNC(type)                         \
